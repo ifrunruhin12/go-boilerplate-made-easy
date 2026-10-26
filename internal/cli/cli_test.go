@@ -62,27 +62,34 @@ func TestInvalidFlags(t *testing.T) {
 		}
 	}
 }
-func TestWizard(t *testing.T) {
-	var out bytes.Buffer
-	cmd := New("test", strings.NewReader("wrong\nfiber\npostgres\nyes\nno\n"), &out)
-	root := t.TempDir()
-	cmd.SetArgs([]string{"new", "wizard", "--dir", root, "--interactive"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	m, err := generator.Load(filepath.Join(root, "wizard"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m.Project.HTTP != "fiber" || !m.Project.Redis || m.Project.Docker {
-		t.Fatal(m.Project)
+func TestWizardRequiresTerminal(t *testing.T) {
+	for _, args := range [][]string{nil, {"new", "wizard", "--interactive"}} {
+		out, err := execute(t, args...)
+		if err == nil || !strings.Contains(err.Error(), "interactive terminal") || out != "" {
+			t.Fatalf("%v: %q %v", args, out, err)
+		}
 	}
 }
-func TestWizardEOF(t *testing.T) {
+
+func TestExplicitNewDoesNotPrompt(t *testing.T) {
+	for _, flags := range [][]string{nil, {"--http", "gin", "--database", "postgres", "--docker"}} {
+		dir := t.TempDir()
+		args := append([]string{"new", "api", "--dir", dir}, flags...)
+		out, err := execute(t, args...)
+		if err != nil || !strings.Contains(out, "Created") {
+			t.Fatalf("%v: %s %v", args, out, err)
+		}
+		if _, err := generator.Load(filepath.Join(dir, "api")); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestWizardNonTerminalLeavesNoFiles(t *testing.T) {
 	dir := t.TempDir()
 	_, err := execute(t, "new", "eof", "--dir", dir, "--interactive")
 	if err == nil {
-		t.Fatal("expected EOF error")
+		t.Fatal("expected terminal error")
 	}
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 0 {

@@ -1,25 +1,29 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"github.com/spf13/cobra"
 	"go-boiletplate-made-easy/internal/config"
 	"go-boiletplate-made-easy/internal/generator"
+	"go-boiletplate-made-easy/internal/wizard"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
 )
 
 func New(version string, in io.Reader, out io.Writer) *cobra.Command {
-	root := &cobra.Command{Use: "gbme", Short: "Go Boilerplate Made Easy: compose a runnable Go backend", SilenceUsage: true, SilenceErrors: true}
+	root := &cobra.Command{Use: "gbme", Short: "Go Boilerplate Made Easy: compose a runnable Go backend", SilenceUsage: true, SilenceErrors: true, Args: cobra.NoArgs}
+	root.Long = "Generate runnable Go backends. Run gbme without arguments in a terminal\nto launch the project wizard. Use explicit commands and flags for scripts."
+	root.Example = "  gbme\n  gbme new my-api --http gin --database postgres --docker\n  gbme new my-api --interactive\n  gbme new my-api --non-interactive --verify"
 	root.SetIn(in)
 	root.SetOut(out)
 	root.SetErr(out)
 	engine := generator.Engine{Version: version}
+	root.RunE = func(cmd *cobra.Command, args []string) error {
+		return wizard.Run(cmd.Context(), in, out, wizard.State{Parent: "."}, engine)
+	}
 	var p config.Project
 	var parent, preset, orm string
 	var interactive, nonInteractive, verify bool
@@ -51,20 +55,8 @@ func New(version string, in io.Reader, out io.Writer) *cobra.Command {
 			}
 			p.DataAccess = orm
 		}
-		explicit := false
-		for _, flag := range []string{"http", "database", "data-access", "orm", "redis", "docker", "preset"} {
-			explicit = explicit || cmd.Flags().Changed(flag)
-		}
-		tty := false
-		if file, ok := in.(*os.File); ok {
-			if info, err := file.Stat(); err == nil {
-				tty = info.Mode()&os.ModeCharDevice != 0
-			}
-		}
-		if interactive || (!nonInteractive && !explicit && tty && os.Getenv("CI") == "") {
-			if err := wizard(in, out, &p); err != nil {
-				return err
-			}
+		if interactive {
+			return wizard.Run(cmd.Context(), in, out, wizard.State{Project: p, Parent: parent, Verify: verify}, engine)
 		}
 		p.Defaults()
 		if err := p.Validate(); err != nil {
@@ -100,7 +92,7 @@ func New(version string, in io.Reader, out io.Writer) *cobra.Command {
 	f.StringVar(&preset, "preset", "", "Curated preset: full (Fiber, PostgreSQL/sql, Redis, Docker)")
 	f.BoolVar(&p.Redis, "redis", false, "Include Redis client and cache example")
 	f.BoolVar(&p.Docker, "docker", false, "Include Dockerfile and Compose services")
-	f.BoolVar(&interactive, "interactive", false, "Prompt for choices; automatic on an unconfigured terminal")
+	f.BoolVar(&interactive, "interactive", false, "Launch the terminal wizard with these flags as initial choices")
 	f.BoolVar(&nonInteractive, "non-interactive", false, "Never prompt; suitable for CI")
 	f.BoolVar(&verify, "verify", false, "Resolve dependencies, run generated tests and build before publication")
 	root.AddCommand(newCmd)
@@ -201,46 +193,4 @@ func New(version string, in io.Reader, out io.Writer) *cobra.Command {
 	doctor.Flags().BoolVar(&doctorVerify, "verify", false, "Run go mod tidy, tests and build in the project")
 	root.AddCommand(doctor)
 	return root
-}
-func wizard(in io.Reader, out io.Writer, p *config.Project) error {
-	scanner := bufio.NewScanner(in)
-	ask := func(label, def string, choices []string) (string, error) {
-		for {
-			fmt.Fprintf(out, "%s [%s] (default %s): ", label, strings.Join(choices, "/"), def)
-			if !scanner.Scan() {
-				if err := scanner.Err(); err != nil {
-					return "", err
-				}
-				return "", fmt.Errorf("interactive input ended; use --non-interactive for defaults")
-			}
-			s := strings.ToLower(strings.TrimSpace(scanner.Text()))
-			if s == "" {
-				return def, nil
-			}
-			for _, choice := range choices {
-				if s == choice {
-					return s, nil
-				}
-			}
-			fmt.Fprintln(out, "Choose one of:", strings.Join(choices, ", "))
-		}
-	}
-	var err error
-	if p.HTTP, err = ask("HTTP", "stdlib", []string{"stdlib", "gin", "fiber"}); err != nil {
-		return err
-	}
-	if p.Database, err = ask("Database", "none", []string{"none", "postgres"}); err != nil {
-		return err
-	}
-	for _, choice := range []struct {
-		label string
-		value *bool
-	}{{"Redis", &p.Redis}, {"Docker", &p.Docker}} {
-		s, err := ask(choice.label, "no", []string{"yes", "no"})
-		if err != nil {
-			return err
-		}
-		*choice.value = s == "yes"
-	}
-	return nil
 }
