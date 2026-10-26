@@ -1,0 +1,18 @@
+package {{.Resource.Name}}
+import("github.com/gin-gonic/gin";"{{.Module}}/internal/api")
+type Handler struct{service *Service}
+func NewHandler(service *Service)*Handler{return &Handler{service}}
+func(h *Handler)Register(router *gin.Engine){group:=router.Group("/api/v1/{{.Resource.Name}}")
+{{if .Resource.Has "GET"}} group.GET("",h.List)
+{{if .Resource.Persistent}} group.GET("/:id",h.Get)
+{{end}}{{end}}{{if .Resource.Has "POST"}} group.POST("",h.Create)
+{{end}}{{if .Resource.Has "PUT"}} group.PUT("/:id",h.Update)
+{{end}}{{if .Resource.Has "DELETE"}} group.DELETE("/:id",h.Delete)
+{{end}}}
+func bad(g *gin.Context,err error){g.JSON(400,api.Failure("invalid_request",err.Error()))}
+func fail(g *gin.Context,err error){status,body:=api.ErrorResponse(err);g.JSON(status,body)}
+func(h *Handler)List(g *gin.Context){limit,offset,err:=api.Page(g.Query("limit"),g.Query("offset"));if err!=nil{bad(g,err);return};records,err:=h.service.List(g.Request.Context(),limit,offset);if err!=nil{fail(g,err);return};g.JSON(200,api.Success(records))}
+func(h *Handler)Get(g *gin.Context){id,err:=api.ID(g.Param("id"));if err!=nil{bad(g,err);return};record,err:=h.service.Get(g.Request.Context(),id);if err!=nil{fail(g,err);return};g.JSON(200,api.Success(record))}
+func(h *Handler)Create(g *gin.Context){var input Input;if err:=api.Decode(g.Request.Body,&input);err!=nil{bad(g,err);return};if err:=input.Validate();err!=nil{bad(g,err);return};record,err:=h.service.Create(g.Request.Context(),input);if err!=nil{fail(g,err);return};g.JSON(201,api.Success(record))}
+func(h *Handler)Update(g *gin.Context){id,err:=api.ID(g.Param("id"));if err!=nil{bad(g,err);return};var input Input;if err:=api.Decode(g.Request.Body,&input);err!=nil{bad(g,err);return};if err:=input.Validate();err!=nil{bad(g,err);return};record,err:=h.service.Update(g.Request.Context(),id,input);if err!=nil{fail(g,err);return};g.JSON(200,api.Success(record))}
+func(h *Handler)Delete(g *gin.Context){id,err:=api.ID(g.Param("id"));if err!=nil{bad(g,err);return};if err:=h.service.Delete(g.Request.Context(),id);err!=nil{fail(g,err);return};g.Status(204)}

@@ -1,0 +1,212 @@
+{
+  "schema": 1,
+  "generator": "0.1.0",
+  "project": {
+    "name": "postgres-api",
+    "module": "postgres-api",
+    "http": "stdlib",
+    "database": "postgres",
+    "data_access": "sql",
+    "redis": false,
+    "docker": true
+  },
+  "resources": [
+    {
+      "name": "products",
+      "fields": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "price",
+          "type": "float64"
+        },
+        {
+          "name": "active",
+          "type": "bool"
+        }
+      ],
+      "methods": [
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE"
+      ],
+      "migration_version": 2,
+      "persistent": true
+    }
+  ],
+  "files": {
+    ".dockerignore": {
+      "feature": "docker",
+      "sha256": "7f196c754f0a14e299eaf5d291b8282d6a6deea1cd15f78675001448b5a5141a"
+    },
+    ".env.example": {
+      "feature": "core",
+      "sha256": "daa9af2bc8db7b92b210bda15a636c7289b3c1e11418b74656b90fcd0f430e82"
+    },
+    ".gitignore": {
+      "feature": "core",
+      "sha256": "478d92cd9a9c722bf1fe94c926bcad4274cda46baf2ccc8078803224ff9dcd33"
+    },
+    "Dockerfile": {
+      "feature": "docker",
+      "sha256": "e466f5e46c02f305469ba53e6831eac141f402b7b2edb7593e43982b55b5b799"
+    },
+    "GBME-LICENSE.txt": {
+      "feature": "core",
+      "sha256": "c266233575dba65eb7938c495abc11a402d5d2af0c58e355999bf2297beaac4c"
+    },
+    "Makefile": {
+      "feature": "core",
+      "sha256": "f4dc1e97d3c78cc627639838aaaecb69745c279542c6e4892cc1b7be47733c0e"
+    },
+    "README.md": {
+      "feature": "core",
+      "sha256": "ad558b66a6427847e5b7f3ce1b8568d99b2b3d43273e540dc84fcff29ae9c3e6"
+    },
+    "cmd/server/main.go": {
+      "feature": "core",
+      "sha256": "1f96d84f3f0d72b030c0abe0712d66c7aef60833dbea940925e5257e67db3b7d"
+    },
+    "compose.yaml": {
+      "feature": "docker",
+      "sha256": "a0f6b216fb6b69b090e545946fa91bc699e513f625a84de7d37ea3bdd0bc4010"
+    },
+    "go.mod": {
+      "feature": "core",
+      "sha256": "358d66dce0b1498e7b6f5540f244fc8ca6f4f6d004c5132cd9c9d5dc1aa59f26"
+    },
+    "go.sum": {
+      "feature": "core",
+      "sha256": "d81f32025c1e726d4dedfd9f25d1be610e975fcd933e1bf02c106efa427dde30"
+    },
+    "internal/api/api.go": {
+      "feature": "core",
+      "sha256": "723cac4dadac52cd5842d86cfa36c5b6f26350d418786592a14f1174cb6d4221"
+    },
+    "internal/api/api_test.go": {
+      "feature": "core",
+      "sha256": "2e4f6a3cc174a01fef7b8c6ac4f796e0e51f2cdccd5969581f4ecb4a5615eeb1"
+    },
+    "internal/config/config.go": {
+      "feature": "core",
+      "sha256": "67cc12458ea7912c39a70d44bb7d921cfe7169055daf005d5f7b580cd1291c48"
+    },
+    "internal/config/config_test.go": {
+      "feature": "core",
+      "sha256": "61ffbb7c8cc938c5fae4ff0c12a072f490f5f1d24d83065f90b0cac8c0d459ce"
+    },
+    "internal/database/database.go": {
+      "feature": "database",
+      "sha256": "8588668475f8c7ad98d07dc8b337bbabd590f6b5674872cda948a172f7e8307e"
+    },
+    "internal/database/database_test.go": {
+      "feature": "database",
+      "sha256": "feb9ce8317a32cfefca6b7ecb10a5e6b904f0f05190cff1bb2d551bc7347316f"
+    },
+    "internal/database/notes.go": {
+      "feature": "database",
+      "sha256": "9f55b490b775bfcc75b532e1fc1d0798ae14656cf99334997cdb47d76deae235"
+    },
+    "internal/products/handler.go": {
+      "feature": "resource:products",
+      "sha256": "93594a579a8315e5a21f874e0a688ac776a4dee395c9e29641b1157ec0c454df"
+    },
+    "internal/products/handler_test.go": {
+      "feature": "resource:products",
+      "sha256": "e16072ec43689d5d0846e415cd57dfedfd77739b58259b628f82e57eb3d84d2a"
+    },
+    "internal/products/model.go": {
+      "feature": "resource:products",
+      "sha256": "37dc19f7b77921b5e5972f5ee5e328dfd21c5305c66b2b16ecee1658c3691209"
+    },
+    "internal/products/repository.go": {
+      "feature": "resource:products",
+      "sha256": "6028d2c55c0169608992f59144d3cb4f7b3b785e533b8033a8ee76a6e395ca85"
+    },
+    "internal/products/repository_test.go": {
+      "feature": "resource:products",
+      "sha256": "bd2d8dfff9d2ed8fa206d78d0e345b1f39ad9fee5238c0f3fe30b0bf56c9ac95"
+    },
+    "internal/products/service.go": {
+      "feature": "resource:products",
+      "sha256": "6d6b10417f0f1693f1740f88a5101b56aa95d73205c2be86d77677799500ad07"
+    },
+    "internal/products/service_test.go": {
+      "feature": "resource:products",
+      "sha256": "44fc03e3240a07c9c85bb27c269c7bb41579bbd2373c09f18d94f9f96285c4eb"
+    },
+    "internal/server/resources_gen.go": {
+      "feature": "http",
+      "sha256": "06b82f356bd7bdd939da0d330617f8f437c3f21c0729eef8c921d9f5b20b7832"
+    },
+    "internal/server/server.go": {
+      "feature": "http",
+      "sha256": "a6d9ae85b7ec00600f7ad8490800f3c1704fb65091f445a7f8272616f00530ea"
+    },
+    "internal/server/server_test.go": {
+      "feature": "http",
+      "sha256": "c3a3614300c897172c36c4ef73d16afd548272829e5bd951e442e4d855ad94a0"
+    },
+    "migrations/000001_notes.down.sql": {
+      "feature": "database",
+      "sha256": "8a8427485a610b8e78f3ea2c68c2f9ce79d66eeaa06e8077f9931c04d5c14cfb"
+    },
+    "migrations/000001_notes.up.sql": {
+      "feature": "database",
+      "sha256": "603fb998c4a3a7fd22ae02a407e1b972c7ac29f76dc2d1befc0c52b7f32db8e7"
+    },
+    "migrations/000002_products.down.sql": {
+      "feature": "resource:products",
+      "sha256": "e448a245e9ab7de91e82ca22dda06ccca00efc6824b3516d3efea5932caced7a"
+    },
+    "migrations/000002_products.up.sql": {
+      "feature": "resource:products",
+      "sha256": "b862fc4ae8a6d41bec1858759d970b6fe0456ea461714bbacc5b03c07a8a4a42"
+    }
+  },
+  "features": {
+    "core": {},
+    "database": {
+      "go_dependencies": [
+        "github.com/jackc/pgx/v5"
+      ],
+      "requires": [
+        "core"
+      ],
+      "shared_files": [
+        "cmd/server/main.go",
+        "internal/config/config.go",
+        "internal/config/config_test.go",
+        "internal/server/server.go",
+        "internal/server/server_test.go",
+        "go.mod",
+        ".env.example",
+        "README.md",
+        "Dockerfile",
+        "compose.yaml"
+      ]
+    },
+    "docker": {
+      "requires": [
+        "core"
+      ]
+    },
+    "http": {
+      "requires": [
+        "core"
+      ]
+    },
+    "resource:products": {
+      "requires": [
+        "http",
+        "database"
+      ],
+      "shared_files": [
+        "internal/server/resources_gen.go"
+      ]
+    }
+  }
+}

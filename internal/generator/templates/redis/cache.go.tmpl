@@ -1,0 +1,10 @@
+package cache
+import("context";"fmt";"time";"errors";"github.com/redis/go-redis/v9")
+type Client struct{client *redis.Client}
+func Open(ctx context.Context,url string)(*Client,error){options,err:=redis.ParseURL(url);if err!=nil{return nil,fmt.Errorf("invalid REDIS_URL")};options.DialTimeout=3*time.Second;options.ReadTimeout=2*time.Second;options.WriteTimeout=2*time.Second;options.ContextTimeoutEnabled=true;options.MaxRetries=1
+ client:=redis.NewClient(options);if err=client.Ping(ctx).Err();err!=nil{client.Close();return nil,fmt.Errorf("Redis connection failed; check URL, TLS and service reachability")};return &Client{client},nil}
+func(c *Client)Close()error{return c.client.Close()}
+func(c *Client)Ping(ctx context.Context)error{return c.client.Ping(ctx).Err()}
+func(c *Client)Get(ctx context.Context,key string)(string,bool,error){value,err:=c.client.Get(ctx,"gbme:"+key).Result();if errors.Is(err,redis.Nil){return "",false,nil};if err!=nil{return "",false,err};return value,true,nil}
+func(c *Client)Set(ctx context.Context,key,value string,ttl time.Duration)error{if ttl<=0{return fmt.Errorf("cache TTL must be positive")};return c.client.Set(ctx,"gbme:"+key,value,ttl).Err()}
+func(c *Client)Example(ctx context.Context)(string,error){value,found,err:=c.Get(ctx,"example");if err!=nil{return "",err};if found{return value,nil};value="hello from Redis";if err=c.Set(ctx,"example",value,60*time.Second);err!=nil{return "",err};return value,nil}

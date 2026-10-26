@@ -1,0 +1,4 @@
+CREATE TABLE "{{.Resource.Name}}" (
+ id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY{{range .Resource.Fields}},
+ "{{.Name}}" {{.SQLType}} NOT NULL{{if eq .Type "string"}} CHECK (length(btrim("{{.Name}}")) > 0 AND length("{{.Name}}") <= 255){{end}}{{end}}
+);

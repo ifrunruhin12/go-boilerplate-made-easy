@@ -1,0 +1,72 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:${PORT:-8080}:8080"
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8080"
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      READ_TIMEOUT: ${READ_TIMEOUT:-10s}
+      WRITE_TIMEOUT: ${WRITE_TIMEOUT:-15s}
+      IDLE_TIMEOUT: ${IDLE_TIMEOUT:-60s}
+      SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-10s}
+{{if eq .Database "postgres"}}      DATABASE_URL: postgres://app:${POSTGRES_PASSWORD:?copy .env.example to .env}@db:5432/app?sslmode=disable
+      DB_MAX_OPEN: ${DB_MAX_OPEN:-10}
+      DB_MAX_IDLE: ${DB_MAX_IDLE:-5}
+{{end}}{{if .Redis}}      REDIS_URL: redis://redis:6379/0
+{{end}}{{if or (eq .Database "postgres") .Redis}}    depends_on:
+{{if eq .Database "postgres"}}      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+{{end}}{{if .Redis}}      redis:
+        condition: service_healthy
+{{end}}{{end}}    stop_grace_period: 15s
+    healthcheck:
+      test: ["CMD", "/app/server", "--healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+{{if eq .Database "postgres"}}
+  migrate:
+    build: .
+    entrypoint: ["/app/migrate"]
+    command: ["-path", "/app/migrations", "-database", "postgres://app:${POSTGRES_PASSWORD:?copy .env.example to .env}@db:5432/app?sslmode=disable", "up"]
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env}
+      POSTGRES_DB: app
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+{{end}}{{if .Redis}}
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+{{end}}{{if or (eq .Database "postgres") .Redis}}
+volumes:
+{{if eq .Database "postgres"}}  postgres-data:
+{{end}}{{if .Redis}}  redis-data:
+{{end}}{{end}}

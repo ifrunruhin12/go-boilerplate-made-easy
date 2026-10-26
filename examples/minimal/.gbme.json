@@ -1,0 +1,127 @@
+{
+  "schema": 1,
+  "generator": "0.1.0",
+  "project": {
+    "name": "minimal",
+    "module": "minimal",
+    "http": "stdlib",
+    "database": "none",
+    "data_access": "none",
+    "redis": false,
+    "docker": false
+  },
+  "resources": [
+    {
+      "name": "users",
+      "fields": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "persistent": false
+    }
+  ],
+  "files": {
+    ".env.example": {
+      "feature": "core",
+      "sha256": "072c54038cba9a7c8afed7eceb79f0679488ab1d8a255f5ad5296ec71dac3b57"
+    },
+    ".gitignore": {
+      "feature": "core",
+      "sha256": "478d92cd9a9c722bf1fe94c926bcad4274cda46baf2ccc8078803224ff9dcd33"
+    },
+    "GBME-LICENSE.txt": {
+      "feature": "core",
+      "sha256": "c266233575dba65eb7938c495abc11a402d5d2af0c58e355999bf2297beaac4c"
+    },
+    "Makefile": {
+      "feature": "core",
+      "sha256": "8de848b1772bc1e9eb44276dc807f7f52411e326751e1bf9e5ac79799b14a44e"
+    },
+    "README.md": {
+      "feature": "core",
+      "sha256": "44d8d84a915504ab3eaf693d442c3a0c05ba1088da7e53933f32d3b0a0fd6a36"
+    },
+    "cmd/server/main.go": {
+      "feature": "core",
+      "sha256": "e2b8f23ee8b366346d7855e3c498c5152cc5f8e438f36b86a41922a41f203e8b"
+    },
+    "go.mod": {
+      "feature": "core",
+      "sha256": "3ace346fbf7c6dc71048fd782ee02e8d79dade7cf518a0f296a25626941de31d"
+    },
+    "internal/api/api.go": {
+      "feature": "core",
+      "sha256": "723cac4dadac52cd5842d86cfa36c5b6f26350d418786592a14f1174cb6d4221"
+    },
+    "internal/api/api_test.go": {
+      "feature": "core",
+      "sha256": "2e4f6a3cc174a01fef7b8c6ac4f796e0e51f2cdccd5969581f4ecb4a5615eeb1"
+    },
+    "internal/config/config.go": {
+      "feature": "core",
+      "sha256": "5427d311b47ea957b744d7faffbdd18d6cef24e0b331c7e134b3414371ee7ea9"
+    },
+    "internal/config/config_test.go": {
+      "feature": "core",
+      "sha256": "fe6aadc913f4819a05e55e27c733ffa0447a0f984591f5229a34a3dd901a9939"
+    },
+    "internal/server/resources_gen.go": {
+      "feature": "http",
+      "sha256": "d67aba7d5e4661d4013296c648c53a3444242155ec23a2e89916ef0fbe5d3f6d"
+    },
+    "internal/server/server.go": {
+      "feature": "http",
+      "sha256": "6d88decc1bfed27357377ecb906f4e0dd7f76afafa7401707bebc1127d33d473"
+    },
+    "internal/server/server_test.go": {
+      "feature": "http",
+      "sha256": "9883801f9f68b062a11376f387ed5a7a212a697f6832a28ddf28a91ae1bdda60"
+    },
+    "internal/users/handler.go": {
+      "feature": "resource:users",
+      "sha256": "6c0f3421868ef7eaee77605efa27c2ee97ac8b0efa6328bf55b8ef47e88232bb"
+    },
+    "internal/users/handler_test.go": {
+      "feature": "resource:users",
+      "sha256": "e99b9b0a22fab2e85a6600eb425ec8095d52f6c012f2d1c6d6ead17c70304938"
+    },
+    "internal/users/model.go": {
+      "feature": "resource:users",
+      "sha256": "9f98980f151a86a97f3451d03aaffa38f9c5f36aad8579297a6f5f5f7a04c942"
+    },
+    "internal/users/service.go": {
+      "feature": "resource:users",
+      "sha256": "1301542dfe7bb7d62b539d056b6e7de751d7d92c5c588c4d5380d41881d3465f"
+    },
+    "internal/users/service_test.go": {
+      "feature": "resource:users",
+      "sha256": "135835194ba7c64df4d5a4a182346587ebde6ed84a7e77d56c4276ba7bb657e3"
+    }
+  },
+  "features": {
+    "core": {},
+    "http": {
+      "requires": [
+        "core"
+      ]
+    },
+    "resource:users": {
+      "requires": [
+        "http"
+      ],
+      "shared_files": [
+        "internal/server/resources_gen.go"
+      ]
+    }
+  }
+}

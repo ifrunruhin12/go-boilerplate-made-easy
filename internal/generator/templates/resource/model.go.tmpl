@@ -1,0 +1,12 @@
+package {{.Resource.Name}}
+import("fmt"{{if .Resource.HasType "string"}};"{{.Module}}/internal/api"{{end}}{{if .Resource.HasType "float64"}};"math"{{end}})
+type Record struct{ID int64 `json:"id"`{{range .Resource.Fields}};{{.GoName}} {{.Type}} `json:"{{.Name}}"`{{end}}}
+type Input struct{ {{range .Resource.Fields}}{{.GoName}} *{{.Type}} `json:"{{.Name}}"`;{{end}} }
+{{if .Resource.HasType "float64"}}func finite(value float64)bool{return !math.IsNaN(value)&&!math.IsInf(value,0)}{{end}}
+func(v Input)Validate()error{
+{{range .Resource.Fields}} if v.{{.GoName}}==nil{return fmt.Errorf("{{.Name}} is required")}
+{{if eq .Type "string"}} if err:=api.ValidateString("{{.Name}}",*v.{{.GoName}});err!=nil{return err}
+{{end}}{{if eq .Type "float64"}} if !finite(*v.{{.GoName}}){return fmt.Errorf("{{.Name}} must be finite")}
+{{end}}{{end}}return nil
+}
+func(v Input)Record()Record{return Record{ {{range .Resource.Fields}}{{.GoName}}:*v.{{.GoName}},{{end}}}}

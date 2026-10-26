@@ -1,0 +1,148 @@
+package cache
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"github.com/redis/go-redis/v9"
+	"io"
+	"net"
+	"os"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestInvalidURL(t *testing.T) {
+	if c, err := Open(context.Background(), "http://invalid"); err == nil {
+		c.Close()
+		t.Fatal("accepted invalid Redis URL")
+	}
+}
+func TestCacheIntegration(t *testing.T) {
+	url := os.Getenv("TEST_REDIS_URL")
+	if url == "" {
+		t.Skip("set TEST_REDIS_URL to an actual Redis service")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c, err := Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	key := fmt.Sprintf("test:%d", time.Now().UnixNano())
+	if _, found, err := c.Get(ctx, key); err != nil || found {
+		t.Fatalf("cache miss: %v %v", found, err)
+	}
+	if err = c.Set(ctx, key, "value", time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	defer c.client.Del(ctx, "gbme:"+key)
+	value, found, err := c.Get(ctx, key)
+	if err != nil || !found || value != "value" {
+		t.Fatalf("cache read: %s %v %v", value, found, err)
+	}
+	if err = c.Set(ctx, key, "value", 0); err == nil {
+		t.Fatal("accepted invalid TTL")
+	}
+	if err = c.client.Del(ctx, "gbme:"+key).Err(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A RESP fixture over net.Pipe exercises the real client without sockets/services.
+func fixture(t *testing.T) *Client {
+	t.Helper()
+	clientSide, serverSide := net.Pipe()
+	t.Cleanup(func() { clientSide.Close(); serverSide.Close() })
+	go func() {
+		defer serverSide.Close()
+		reader := bufio.NewReader(serverSide)
+		values := map[string]string{}
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				return
+			}
+			count, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "*")))
+			if err != nil || count < 1 {
+				return
+			}
+			args := make([]string, count)
+			for i := range args {
+				header, err := reader.ReadString('\n')
+				if err != nil {
+					return
+				}
+				size, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(header, "$")))
+				if err != nil || size < 0 || size > 1024*1024 {
+					return
+				}
+				b := make([]byte, size+2)
+				if _, err = io.ReadFull(reader, b); err != nil {
+					return
+				}
+				args[i] = string(b[:size])
+			}
+			reply := "+OK\r\n"
+			switch strings.ToLower(args[0]) {
+			case "hello":
+				reply = "-ERR unknown command\r\n"
+			case "ping":
+				reply = "+PONG\r\n"
+			case "set":
+				if len(args) < 5 {
+					reply = "-ERR missing TTL\r\n"
+				} else {
+					values[args[1]] = args[2]
+				}
+			case "get":
+				if args[1] == "gbme:failure" {
+					reply = "-ERR injected failure\r\n"
+				} else if value, ok := values[args[1]]; ok {
+					reply = fmt.Sprintf("$%d\r\n%s\r\n", len(value), value)
+				} else {
+					reply = "$-1\r\n"
+				}
+			}
+			if _, err = io.WriteString(serverSide, reply); err != nil {
+				return
+			}
+		}
+	}()
+	client := redis.NewClient(&redis.Options{Protocol: 2, DisableIdentity: true, PoolSize: 1, MaxRetries: -1, ReadTimeout: time.Second, WriteTimeout: time.Second, ContextTimeoutEnabled: true, Dialer: func(context.Context, string, string) (net.Conn, error) { return clientSide, nil }})
+	t.Cleanup(func() { client.Close() })
+	return &Client{client: client}
+}
+func TestCacheWithRESPFixture(t *testing.T) {
+	c := fixture(t)
+	ctx := context.Background()
+	if err := c.Ping(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := c.Get(ctx, "missing"); err != nil || found {
+		t.Fatalf("missing: %v %v", found, err)
+	}
+	if err := c.Set(ctx, "key", "value", time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if value, found, err := c.Get(ctx, "key"); err != nil || !found || value != "value" {
+		t.Fatalf("hit: %q %v %v", value, found, err)
+	}
+	if value, err := c.Example(ctx); err != nil || value != "hello from Redis" {
+		t.Fatalf("example: %q %v", value, err)
+	}
+	if _, _, err := c.Get(ctx, "failure"); err == nil {
+		t.Fatal("lost Redis error")
+	}
+	if err := c.Set(ctx, "key", "value", 0); err == nil {
+		t.Fatal("accepted TTL zero")
+	}
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if err := c.Ping(canceled); err == nil {
+		t.Fatal("ignored cancellation")
+	}
+}

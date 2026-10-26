@@ -1,0 +1,52 @@
+package server
+import (
+ "context"
+ "log/slog"
+ "time"
+ "{{.Module}}/internal/api"
+ "{{.Module}}/internal/config"
+{{if eq .Database "postgres"}} "database/sql"
+{{end}}{{if or (eq .Database "postgres") .Redis}} "fmt"
+{{end}}{{if .Redis}} "{{.Module}}/internal/cache"
+{{end}}
+ "net/http"
+ "errors"
+ "github.com/gin-gonic/gin"
+)
+type Dependencies struct {
+ Logger *slog.Logger
+{{if eq .Database "postgres"}} DB *sql.DB
+{{end}}{{if .Redis}} Cache *cache.Client
+{{end}}}
+func ready(ctx context.Context,d Dependencies)error{
+ ctx,cancel:=context.WithTimeout(ctx,2*time.Second);defer cancel()
+{{if eq .Database "postgres"}} if d.DB==nil{return fmt.Errorf("database unavailable")};if err:=d.DB.PingContext(ctx);err!=nil{return err}
+{{end}}{{if .Redis}} if d.Cache==nil{return fmt.Errorf("cache unavailable")};if err:=d.Cache.Ping(ctx);err!=nil{return err}
+{{end}}return nil
+}
+
+type Server struct{Router *gin.Engine;HTTP *http.Server}
+func New(c config.Config,d Dependencies)*Server{
+ if d.Logger==nil{d.Logger=slog.Default()}
+ gin.SetMode(gin.ReleaseMode)
+ router:=gin.New();_ = router.SetTrustedProxies(nil)
+ router.Use(func(g *gin.Context){
+  start:=time.Now();id:=api.RequestID();g.Header("X-Request-ID",id)
+  defer func(){if recovered:=recover();recovered!=nil{d.Logger.Error("handler panic","request_id",id);g.AbortWithStatusJSON(500,api.Failure("internal_error","an internal error occurred"))};d.Logger.Info("request","request_id",id,"method",g.Request.Method,"path",g.Request.URL.Path,"status",g.Writer.Status(),"duration",time.Since(start))}()
+  g.Header("Vary","Origin")
+  if origin:=g.GetHeader("Origin");origin!=""{if !api.Allows(c.CORSOrigins,origin){g.AbortWithStatusJSON(403,api.Failure("cors_denied","origin is not allowed"));return};g.Header("Access-Control-Allow-Origin",origin);g.Header("Access-Control-Allow-Methods","GET,POST,PUT,DELETE,OPTIONS");g.Header("Access-Control-Allow-Headers","Content-Type,Authorization,X-Request-ID");g.Header("Access-Control-Expose-Headers","X-Request-ID")}
+  if g.Request.Method=="OPTIONS"{g.AbortWithStatus(204);return}
+  g.Request.Body=http.MaxBytesReader(g.Writer,g.Request.Body,api.MaxBodyBytes)
+  ctx,cancel:=context.WithTimeout(g.Request.Context(),c.WriteTimeout);defer cancel();g.Request=g.Request.WithContext(ctx);g.Next()
+ })
+ router.GET("/health",func(g *gin.Context){g.JSON(200,api.Success(gin.H{"status":"ok"}))})
+ router.GET("/ready",func(g *gin.Context){if err:=ready(g.Request.Context(),d);err!=nil{d.Logger.Warn("readiness failed");g.JSON(503,api.Failure("not_ready","dependencies unavailable"));return};g.JSON(200,api.Success(gin.H{"status":"ready"}))})
+{{if .Redis}} router.GET("/api/v1/cache/example",func(g *gin.Context){value,err:=d.Cache.Example(g.Request.Context());if err!=nil{status,body:=api.ErrorResponse(err);g.JSON(status,body);return};g.JSON(200,api.Success(gin.H{"value":value}))})
+{{end}} registerResources(router,d)
+ router.HandleMethodNotAllowed=true
+ router.NoRoute(func(g *gin.Context){g.JSON(404,api.Failure("not_found","route not found"))})
+ router.NoMethod(func(g *gin.Context){g.JSON(405,api.Failure("method_not_allowed","method not allowed"))})
+ return &Server{Router:router,HTTP:&http.Server{Handler:router,ReadTimeout:c.ReadTimeout,ReadHeaderTimeout:5*time.Second,WriteTimeout:c.WriteTimeout,IdleTimeout:c.IdleTimeout,MaxHeaderBytes:1<<20}}
+}
+func(s *Server)Listen(address string)error{s.HTTP.Addr=address;err:=s.HTTP.ListenAndServe();if errors.Is(err,http.ErrServerClosed){return nil};return err}
+func(s *Server)Shutdown(ctx context.Context)error{if err:=s.HTTP.Shutdown(ctx);err!=nil{_ = s.HTTP.Close();return err};return nil}

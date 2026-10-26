@@ -1,0 +1,50 @@
+package server
+import (
+ "context"
+ "log/slog"
+ "time"
+ "{{.Module}}/internal/api"
+ "{{.Module}}/internal/config"
+{{if eq .Database "postgres"}} "database/sql"
+{{end}}{{if or (eq .Database "postgres") .Redis}} "fmt"
+{{end}}{{if .Redis}} "{{.Module}}/internal/cache"
+{{end}}
+ "github.com/gofiber/fiber/v2"
+ "github.com/gofiber/fiber/v2/middleware/recover"
+)
+type Dependencies struct {
+ Logger *slog.Logger
+{{if eq .Database "postgres"}} DB *sql.DB
+{{end}}{{if .Redis}} Cache *cache.Client
+{{end}}}
+func ready(ctx context.Context,d Dependencies)error{
+ ctx,cancel:=context.WithTimeout(ctx,2*time.Second);defer cancel()
+{{if eq .Database "postgres"}} if d.DB==nil{return fmt.Errorf("database unavailable")};if err:=d.DB.PingContext(ctx);err!=nil{return err}
+{{end}}{{if .Redis}} if d.Cache==nil{return fmt.Errorf("cache unavailable")};if err:=d.Cache.Ping(ctx);err!=nil{return err}
+{{end}}return nil
+}
+
+type Server struct{App *fiber.App}
+func New(c config.Config,d Dependencies)*Server{
+ if d.Logger==nil{d.Logger=slog.Default()}
+ errorHandler:=func(f *fiber.Ctx,err error)error{if len(f.Response().Header.Peek("X-Request-ID"))==0{f.Set("X-Request-ID",api.RequestID())};status:=500;message:="an internal error occurred";code:="internal_error";if e,ok:=err.(*fiber.Error);ok{status=e.Code;message=e.Message;code="http_error"}else{d.Logger.Error("handler failed","error",err)};return f.Status(status).JSON(api.Failure(code,message))}
+ app:=fiber.New(fiber.Config{DisableStartupMessage:true,BodyLimit:api.MaxBodyBytes,ReadTimeout:c.ReadTimeout,WriteTimeout:c.WriteTimeout,IdleTimeout:c.IdleTimeout,ErrorHandler:errorHandler})
+ app.Use(func(f *fiber.Ctx)error{
+  start:=time.Now();id:=api.RequestID();f.Set("X-Request-ID",id)
+  defer func(){d.Logger.Info("request","request_id",id,"method",f.Method(),"path",f.Path(),"status",f.Response().StatusCode(),"duration",time.Since(start))}()
+  f.Set("Vary","Origin")
+  if origin:=f.Get("Origin");origin!=""{if !api.Allows(c.CORSOrigins,origin){return f.Status(403).JSON(api.Failure("cors_denied","origin is not allowed"))};f.Set("Access-Control-Allow-Origin",origin);f.Set("Access-Control-Allow-Methods","GET,POST,PUT,DELETE,OPTIONS");f.Set("Access-Control-Allow-Headers","Content-Type,Authorization,X-Request-ID");f.Set("Access-Control-Expose-Headers","X-Request-ID")}
+  if f.Method()=="OPTIONS"{return f.SendStatus(204)}
+  ctx,cancel:=context.WithTimeout(f.UserContext(),c.WriteTimeout);defer cancel();f.SetUserContext(ctx)
+  if err:=f.Next();err!=nil{return errorHandler(f,err)};return nil
+ })
+ app.Use(recover.New(recover.Config{EnableStackTrace:false}))
+ app.Get("/health",func(f *fiber.Ctx)error{return f.JSON(api.Success(fiber.Map{"status":"ok"}))})
+ app.Get("/ready",func(f *fiber.Ctx)error{if err:=ready(f.UserContext(),d);err!=nil{d.Logger.Warn("readiness failed");return f.Status(503).JSON(api.Failure("not_ready","dependencies unavailable"))};return f.JSON(api.Success(fiber.Map{"status":"ready"}))})
+{{if .Redis}} app.Get("/api/v1/cache/example",func(f *fiber.Ctx)error{value,err:=d.Cache.Example(f.UserContext());if err!=nil{status,body:=api.ErrorResponse(err);return f.Status(status).JSON(body)};return f.JSON(api.Success(fiber.Map{"value":value}))})
+{{end}} registerResources(app,d)
+ app.Use(func(f *fiber.Ctx)error{return f.Status(404).JSON(api.Failure("not_found","route not found"))})
+ return &Server{App:app}
+}
+func(s *Server)Listen(address string)error{return s.App.Listen(address)}
+func(s *Server)Shutdown(ctx context.Context)error{return s.App.ShutdownWithContext(ctx)}

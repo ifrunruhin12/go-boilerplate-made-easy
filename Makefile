@@ -1,0 +1,13 @@
+.PHONY: build install test test-matrix test-gin-matrix vet
+build:
+	go build -buildvcs=false -trimpath -o bin/gbme ./cmd/gbme
+install:
+	go install -buildvcs=false ./cmd/gbme
+test:
+	go test ./...
+test-matrix:
+	GBME_MATRIX=1 go test -count=1 ./...
+test-gin-matrix:
+	GBME_MATRIX=1 GBME_GIN_MATRIX=1 go test -count=1 ./...
+vet:
+	go vet ./...
