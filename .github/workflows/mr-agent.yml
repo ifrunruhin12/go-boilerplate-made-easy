@@ -1,0 +1,69 @@
+# Copy to .github/workflows/mr-agent.yml in the repository you want reviewed.
+# Setup: docs/mragent/github-setup.md
+name: MR-Agent PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: mragent-${{ github.repository }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: >-
+      vars.MRAGENT_ENABLED == 'true' &&
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]' &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-mragent')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out the PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: _mragent-target
+
+      - name: Check source settings
+        shell: bash
+        env:
+          MRAGENT_REF: ${{ vars.MRAGENT_REF }}
+        run: |
+          [[ "$MRAGENT_REF" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::Set MRAGENT_REF to the full source commit SHA containing action.yml'; exit 1; }
+
+      - name: Check out MR-Agent
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ vars.MRAGENT_SOURCE_REPOSITORY || 'ifrunruhin12/mr-agent' }}
+          ref: ${{ vars.MRAGENT_REF }}
+          token: ${{ secrets.MRAGENT_SOURCE_TOKEN || github.token }}
+          persist-credentials: false
+          path: _mragent-source
+
+      - name: Review PR with MR-Agent
+        uses: ./_mragent-source
+        with:
+          github-token: ${{ github.token }}
+          llm-token: ${{ secrets.OCR_LLM_TOKEN }}
+          llm-url: ${{ vars.OCR_LLM_URL }}
+          llm-model: ${{ vars.OCR_LLM_MODEL }}
+          llm-protocol: ${{ vars.OCR_LLM_PROTOCOL }}
+          dry-run: ${{ vars.MRAGENT_DRY_RUN || 'false' }}
+
+      - name: Save review report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mragent-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/mragent-report/
+          if-no-files-found: ignore
+          retention-days: 7
