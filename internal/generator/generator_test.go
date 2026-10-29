@@ -54,6 +54,21 @@ func TestTemplateMatrix(t *testing.T) {
 		}
 	}
 }
+
+func TestPostgresComposeHealthcheckUsesServiceDNS(t *testing.T) {
+	e := Engine{Version: "test"}
+	p := config.Project{Name: "api", Database: "postgres", Docker: true}
+	p.Defaults()
+	files, err := e.compose(p, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compose := string(files["compose.yaml"].body)
+	if !strings.Contains(compose, `pg_isready -h db -U app -d app`) {
+		t.Fatal("PostgreSQL healthcheck does not validate Compose DNS reachability")
+	}
+}
+
 func TestGenerationAndDuplicates(t *testing.T) {
 	root := t.TempDir()
 	e := Engine{Version: "test"}

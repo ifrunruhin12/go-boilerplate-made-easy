@@ -29,10 +29,8 @@ func (p *Project) Defaults() {
 		p.Database = "none"
 	}
 	if p.DataAccess == "" {
-		if p.Database == "none" {
-			p.DataAccess = "none"
-		} else {
-			p.DataAccess = "sql"
+		if choices := DataAccessChoices(p.Database); len(choices) > 0 {
+			p.DataAccess = choices[0].Value
 		}
 	}
 	if p.Module == "" {
@@ -40,23 +38,19 @@ func (p *Project) Defaults() {
 	}
 }
 func (p Project) Validate() error {
-	if !namePattern.MatchString(p.Name) || len(p.Name) > 64 {
-		return fmt.Errorf("project name must be lowercase kebab-case, start with a letter, and contain at most 64 characters")
+	if err := ValidateProjectName(p.Name); err != nil {
+		return err
 	}
 	if !modulePattern.MatchString(p.Module) || strings.Contains(p.Module, "..") || strings.HasSuffix(p.Module, "/") || strings.Contains(p.Module, "//") || strings.Contains(p.Module, "/vendor/") {
 		return fmt.Errorf("invalid Go module path %q", p.Module)
 	}
-	switch p.HTTP {
-	case "stdlib", "gin", "fiber":
-	default:
+	if !containsChoice(HTTPChoices(), p.HTTP) {
 		return fmt.Errorf("unknown HTTP framework %q; choose stdlib, gin, or fiber", p.HTTP)
 	}
-	switch p.Database {
-	case "none", "postgres":
-	default:
+	if !containsChoice(DatabaseChoices(), p.Database) {
 		return fmt.Errorf("database %q is not implemented; choose none or postgres (SQLite, MySQL and MongoDB are planned)", p.Database)
 	}
-	if (p.Database == "none" && p.DataAccess != "none") || (p.Database == "postgres" && p.DataAccess != "sql") {
+	if !containsChoice(DataAccessChoices(p.Database), p.DataAccess) {
 		return fmt.Errorf("incompatible database/data-access pair %s/%s; use none/none or postgres/sql (GORM and sqlc are planned)", p.Database, p.DataAccess)
 	}
 	return nil

@@ -33,6 +33,7 @@ docker compose down
 ```
 
 Compose builds a non-root application, starts only selected services, checks dependency health{{if eq .Database "postgres"}}, runs migrations as a separate one-shot service before HTTP startup{{end}}, and persists stateful services in named volumes. Native PostgreSQL/Redis ports are bound only to loopback; HTTP is bound to loopback by default in Compose. `docker compose down` keeps volumes; removing volumes destroys local data. The pinned builder/runtime tags should be refreshed as part of maintenance.
+If an existing stack reports a service-name DNS error such as `lookup db ... no such host`, recreate its containers and network with `docker compose down` followed by `docker compose up --build`; named-volume data is preserved.
 {{if eq .Database "postgres"}}After adding a resource, rebuild the migration image: `docker compose build`, then `docker compose run --rm migrate`. Restart/rebuild the app to pick up new routes.{{end}}
 {{end}}
 

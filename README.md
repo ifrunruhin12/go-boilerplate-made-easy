@@ -9,7 +9,7 @@ cd my-api
 go run ./cmd/server
 ```
 
-Go **1.24+** is required for both the generator and generated applications. The existing local directory is `go-boilerplate-made-easy`; the generator module identifier preserves the requested `go-boiletplate-made-easy` spelling. No public installation URL is assumed.
+Go **1.25+** is required to build/install GBME; generated applications still require **Go 1.24+**. The CLI uses Charm's maintained v2 libraries (Bubble Tea 2.0.8, Bubbles 2.1.1, Lip Gloss 2.0.6), which require Go 1.25. The existing local directory is `go-boilerplate-made-easy`; the generator module identifier preserves the requested `go-boiletplate-made-easy` spelling. No public installation URL is assumed.
 
 ## Install and quick start
 
@@ -18,13 +18,52 @@ From this directory:
 ```sh
 go mod download
 go install -buildvcs=false ./cmd/gbme       # put $(go env GOPATH)/bin on PATH
+export PATH="$(go env GOPATH)/bin:$PATH"   # persist this in ~/.zshrc or ~/.bashrc
 gbme version
-gbme new my-api             # four short prompts on an unconfigured terminal
+gbme                       # launch the interactive project wizard
 # In CI/pipes, defaults are applied without prompts:
 gbme new another-api --non-interactive --verify
 ```
 
 `--verify` resolves dependencies, runs generated tests and builds in a staging directory before publishing. It needs access to the selected dependencies, but ordinary unit tests need no running services. Without it, all Go source is formatted and configuration is validated; run `go mod tidy` in the result before building. Existing destinations are always refused. `--dir` selects an existing parent directory; names are lowercase kebab-case. Use `--module example.com/team/my-api` for an import path.
+
+## Interactive wizard
+
+Run `gbme` in a terminal. The wizard asks for a project name and existing parent directory, HTTP implementation, database, optional Redis and Docker, and whether to verify the generated project. PostgreSQL adds a SQL data-access question; choosing no database skips it. A final review shows every selection and the resolved output path before Enter starts generation.
+
+| Key | Action |
+|---|---|
+| Arrow keys | Select an option |
+| Space | Toggle Redis, Docker or verification |
+| Enter | Continue; generate on the review screen; exit on the result screen |
+| Esc | Previous question; return from an error to review |
+| Backspace | Previous question on selection screens; delete text in inputs |
+| Up/Down | Scroll review, results and diagnostics |
+| Page Up/Page Down | Scroll any question or result on a small terminal |
+| Ctrl+C | Cancel; during generation wait for generator cleanup |
+
+Selections persist when navigating back. Names must be lowercase kebab-case with at most 64 characters. Paths may be absolute, relative or start with `~/`; the parent must already exist and the target must be new. Redis adds the implemented client, readiness check and cache example; connection settings belong in the generated `.env`. Docker includes only selected services. Authentication, OpenAPI, MySQL, SQLite, GORM and sqlc are not selectable because they are not implemented. Gin is labeled as a preview.
+
+Generation runs without blocking keyboard input and shows activity without estimated percentages. Verification can resolve dependencies, test and build before publishing; it has a five-minute timeout. Failures retain compiler/tool diagnostics and allow returning to review. The success screen prints the output path and native or Docker commands, including required environment loading and migrations. Those instructions remain in the terminal after exiting.
+
+Seed the wizard with flags when useful:
+
+```sh
+gbme new my-api --interactive --http fiber --database postgres --redis --docker
+gbme new my-api --interactive --module example.com/team/my-api --dir ~/Projects
+```
+
+**CLI compatibility:** explicit `gbme new NAME` invocations now use defaults/flags without automatic prompts. Use bare `gbme` or `new NAME --interactive` for the TUI. All existing generation flags, presets, `add`, `doctor`, `list`, `version` and help remain available. `--interactive` requires terminal input and output and cannot be combined with `--non-interactive`.
+
+In CI or with redirected streams, bare `gbme` exits with guidance instead of waiting for input. Supply `gbme new NAME --non-interactive [flags]` for scripts:
+
+```sh
+gbme new my-api --http gin --database postgres --docker --non-interactive
+gbme --help
+gbme version
+```
+
+For a local binary without installing, run `make build` and `./bin/gbme`. Run `make install` again after updating GBME to refresh the installed command.
 
 ```sh
 gbme new billing-api --http stdlib --database postgres --data-access sql --redis --docker --verify
@@ -58,6 +97,7 @@ Core capabilities: typed environment configuration, slog JSON logging, strict re
 
 | Command | Purpose |
 |---|---|
+| `gbme` | Launch the interactive project-generation wizard in a terminal |
 | `gbme new NAME` | Generate a separate Go module |
 | `gbme add endpoint NAME --fields ...` | In-memory HTTP example with GET and/or POST |
 | `gbme add resource NAME --fields ... --crud` | PostgreSQL-backed GET, POST, PUT and DELETE |
@@ -65,7 +105,7 @@ Core capabilities: typed environment configuration, slog JSON logging, strict re
 | `gbme doctor [--project PATH] [--verify]` | Locate tools, inspect manifest, optionally tidy/test/build |
 | `gbme version` | Generator version |
 
-Every command has `--help`. `new` accepts `--http`, `--database`, `--data-access`, `--redis`, `--docker`, `--module`, `--dir`, `--preset`, `--interactive`, `--non-interactive` and `--verify`. `--orm` is a compatibility alias for `--data-access`; `--orm gorm` explains that GORM is not implemented. Explicit feature flags skip automatic prompts. `--preset full` selects Fiber + PostgreSQL/sql + Redis + Docker; individual flags override preset defaults, including `--redis=false` and `--docker=false`.
+Every command has `--help`. `new` accepts `--http`, `--database`, `--data-access`, `--redis`, `--docker`, `--module`, `--dir`, `--preset`, `--interactive`, `--non-interactive` and `--verify`. `--orm` is a compatibility alias for `--data-access`; `--orm gorm` explains that GORM is not implemented. Explicit commands do not launch the wizard unless `--interactive` is provided. `--preset full` selects Fiber + PostgreSQL/sql + Redis + Docker; individual flags override preset defaults, including `--redis=false` and `--docker=false`.
 
 `add` accepts `--project PATH` (default current directory), `--fields` and `--verify`; endpoint additionally accepts `--method GET,POST`; resource requires `--crud`. There is no duplicate `generate` alias and no automatic `remove`: safe destructive pruning is deferred.
 
@@ -96,7 +136,7 @@ migrations/                numbered SQL up/down pairs (PostgreSQL)
 .gbme.json                 selections, resources, ownership and feature dependencies
 ```
 
-The generator itself separates Cobra command handling, configuration validation and a rendering/composition engine. Templates are embedded in the binary; framework implementations are separate files. There is no runtime framework or speculative plugin system. Normal Go interfaces isolate storage; the application entry point supplies dependencies explicitly.
+The generator separates Cobra command handling (`internal/cli`), capability choices and validation (`internal/config`), Bubble Tea state/navigation/views (`internal/wizard`), and rendering/composition/file publication (`internal/generator`). The wizard submits configuration through a small `Generator` interface implemented by the existing `Engine.New`; it does not render templates or publish files. Templates are embedded in the binary; framework implementations are separate files. Generated applications have no dependency on the TUI. Normal Go interfaces isolate storage; the application entry point supplies dependencies explicitly.
 
 Generated READMEs contain the complete env reference and workflows. Common variables are `HOST`, `PORT`, `READ_TIMEOUT`, `WRITE_TIMEOUT`, `IDLE_TIMEOUT`, `SHUTDOWN_TIMEOUT` and exact `CORS_ORIGINS`. PostgreSQL requires `DATABASE_URL` and supports `DB_MAX_OPEN`/`DB_MAX_IDLE`; Redis uses `REDIS_URL`, including `rediss://`. `.env.example` contains local-only example values. Native applications load exported variables: `set -a; . ./.env; set +a`. They do not implicitly read dotenv. Deploy secrets through your environment/secret manager and enable TLS in production.
 
@@ -115,13 +155,18 @@ go test ./...                        # generator, CLI, validation and executable
 GBME_MATRIX=1 go test -count=1 ./...   # stdlib/Fiber, Postgres, Redis, Docker combinations
 GBME_MATRIX=1 GBME_GIN_MATRIX=1 go test -count=1 ./... # include Gin; needs dependencies
 go test -race ./...
+go vet ./...
 ```
 
 Set `TEST_DATABASE_URL` and `TEST_REDIS_URL` to disposable services to run generated integration tests inside the matrix. PostgreSQL tests use session-local temporary tables; Redis tests use unique keys and clean them up. Without service URLs those tests explicitly skip; the Redis protocol fixture runs in ordinary tests. `--short` skips executable generated-project checks. CI specifies PostgreSQL/Redis services and includes the Gin matrix; its execution has not been observed locally.
 
 [Examples](examples/README.md) include a minimal stdlib API, a stdlib PostgreSQL resource project, and a Fiber toolbox project. Each is a standalone module with its own README and tests. Generator tests cover CLI parsing, incompatible options, rendering, framework/database output, required files, naming/paths, selected dependencies, duplicates, locks, symlinks, modified registries, migration sequencing and failure cleanup. Representative combinations are executed, not merely snapshotted.
 
+Wizard tests drive Bubble Tea messages without a real terminal: forward/back navigation, text editing, retained selections, conditional questions, validation, cancellation/cleanup, errors/retry, final submission, narrow/plain rendering, startup commands and integration with the real generator. A verified stdlib wizard flow executes generated tests and a build unless `-short` is supplied.
+
 ## Troubleshooting and contribution
+
+Terminal problems: the wizard requires both stdin and stdout to be terminals, a nonempty `TERM` other than `dumb`, and an unset `CI` variable. Use a normal terminal or the explicit non-interactive command if an IDE console, pipe or remote session lacks terminal support. `NO_COLOR=1 gbme` disables styling; selections also use text markers. Narrow layouts wrap, and review/results/errors can scroll. The wizard restores the terminal on exit. If `gbme` still shows old behavior after rebuilding, reinstall with `make install` and check `command -v gbme`.
 
 Missing dependencies: run `go mod tidy`, or use `--verify` where your proxy is available. No network: stdlib generation/tests remain usable; cached modules can be used through a file GOPROXY. A failed verification removes the staged project. Tool errors identify the failing Go command.
 

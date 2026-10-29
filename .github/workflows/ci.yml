@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: ["1.24.x", "stable"]
+        go: ["1.25.x", "stable"]
     services:
       postgres:
         image: postgres:16-alpine
@@ -37,6 +37,23 @@ jobs:
           TEST_DATABASE_URL: postgres://gbme:local-ci-only@localhost:5432/gbme?sslmode=disable
           TEST_REDIS_URL: redis://localhost:6379/0
       - run: make build
+  generated-minimum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+      - run: make build
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+      - name: Verify generated applications with their minimum Go version
+        run: |
+          for http in stdlib gin fiber; do
+            ./bin/gbme new "minimum-$http" --http "$http" --database postgres --redis --docker --non-interactive --verify
+            ./bin/gbme add resource products --project "minimum-$http" --fields name:string,active:bool --crud --verify
+          done
   docker:
     runs-on: ubuntu-latest
     steps:
