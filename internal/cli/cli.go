@@ -79,6 +79,9 @@ func New(version string, in io.Reader, out io.Writer) *cobra.Command {
 		if p.Database != "none" {
 			fmt.Fprintln(out, "      make migrate-up  # after starting PostgreSQL")
 		}
+		if p.OpenAPI {
+			fmt.Fprintln(out, "      # OpenAPI document: curl http://localhost:8080/openapi.json")
+		}
 		fmt.Fprintln(out, "      go run ./cmd/server")
 		return nil
 	}}
@@ -92,13 +95,14 @@ func New(version string, in io.Reader, out io.Writer) *cobra.Command {
 	f.StringVar(&preset, "preset", "", "Curated preset: full (Fiber, PostgreSQL/sql, Redis, Docker)")
 	f.BoolVar(&p.Redis, "redis", false, "Include Redis client and cache example")
 	f.BoolVar(&p.Docker, "docker", false, "Include Dockerfile and Compose services")
+	f.BoolVar(&p.OpenAPI, "openapi", false, "Generate an OpenAPI 3.0.3 document (openapi.json) served at /openapi.json")
 	f.BoolVar(&interactive, "interactive", false, "Launch the terminal wizard with these flags as initial choices")
 	f.BoolVar(&nonInteractive, "non-interactive", false, "Never prompt; suitable for CI")
 	f.BoolVar(&verify, "verify", false, "Resolve dependencies, run generated tests and build before publication")
 	root.AddCommand(newCmd)
 	root.AddCommand(&cobra.Command{Use: "version", Short: "Print the generator version", Args: cobra.NoArgs, Run: func(*cobra.Command, []string) { fmt.Fprintln(out, "gbme", version) }})
 	root.AddCommand(&cobra.Command{Use: "list [frameworks|databases|features|presets]", Short: "List implemented choices and validation limits", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		groups := map[string]string{"frameworks": "stdlib: executable tests verified\nfiber: executable tests verified\ngin: implemented templates; executable validation requires uncached dependencies", "databases": "none/none: HTTP-only endpoints\npostgres/sql: pooled connections, repository CRUD, SQL migrations\nGORM, sqlc, SQLite, MySQL and MongoDB: planned", "features": "core: config, slog, JSON validation, request IDs, CORS, health/readiness, shutdown\nredis: optional client, cache example and integration tests\ndocker: optional multi-stage image and Compose; daemon execution needs Docker access\nresources: GET,POST,PUT,DELETE with PostgreSQL; GET,POST in-memory endpoints", "presets": "full: Fiber + PostgreSQL/sql + Redis + Docker"}
+		groups := map[string]string{"frameworks": "stdlib: executable tests verified\nfiber: executable tests verified\ngin: implemented templates; executable validation requires uncached dependencies", "databases": "none/none: HTTP-only endpoints\npostgres/sql: pooled connections, repository CRUD, SQL migrations\nGORM, sqlc, SQLite, MySQL and MongoDB: planned", "features": "core: config, slog, JSON validation, request IDs, CORS, health/readiness, shutdown\nredis: optional client, cache example and integration tests\ndocker: optional multi-stage image and Compose; daemon execution needs Docker access\nopenapi: optional OpenAPI 3.0.3 document (openapi.json) served at GET /openapi.json; no extra dependencies\nresources: GET,POST,PUT,DELETE with PostgreSQL; GET,POST in-memory endpoints", "presets": "full: Fiber + PostgreSQL/sql + Redis + Docker"}
 		names := []string{"frameworks", "databases", "features", "presets"}
 		if len(args) > 0 {
 			if _, ok := groups[args[0]]; !ok {

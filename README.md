@@ -29,12 +29,12 @@ gbme new another-api --non-interactive --verify
 
 ## Interactive wizard
 
-Run `gbme` in a terminal. The wizard asks for a project name and existing parent directory, HTTP implementation, database, optional Redis and Docker, and whether to verify the generated project. PostgreSQL adds a SQL data-access question; choosing no database skips it. A final review shows every selection and the resolved output path before Enter starts generation.
+Run `gbme` in a terminal. The wizard asks for a project name and existing parent directory, HTTP implementation, database, optional Redis, Docker, OpenAPI and verification. PostgreSQL adds a SQL data-access question; choosing no database skips it. A final review shows every selection and the resolved output path before Enter starts generation.
 
 | Key | Action |
 |---|---|
 | Arrow keys | Select an option |
-| Space | Toggle Redis, Docker or verification |
+| Space | Toggle Redis, Docker, OpenAPI or verification |
 | Enter | Continue; generate on the review screen; exit on the result screen |
 | Esc | Previous question; return from an error to review |
 | Backspace | Previous question on selection screens; delete text in inputs |
@@ -42,7 +42,7 @@ Run `gbme` in a terminal. The wizard asks for a project name and existing parent
 | Page Up/Page Down | Scroll any question or result on a small terminal |
 | Ctrl+C | Cancel; during generation wait for generator cleanup |
 
-Selections persist when navigating back. Names must be lowercase kebab-case with at most 64 characters. Paths may be absolute, relative or start with `~/`; the parent must already exist and the target must be new. Redis adds the implemented client, readiness check and cache example; connection settings belong in the generated `.env`. Docker includes only selected services. Authentication, OpenAPI, MySQL, SQLite, GORM and sqlc are not selectable because they are not implemented. Gin is labeled as a preview.
+Selections persist when navigating back. Names must be lowercase kebab-case with at most 64 characters. Paths may be absolute, relative or start with `~/`; the parent must already exist and the target must be new. Redis adds the implemented client, readiness check and cache example; connection settings belong in the generated `.env`. Docker includes only selected services. OpenAPI emits an OpenAPI 3.0.3 document (openapi.json) embedded and served at GET /openapi.json, with no extra dependencies. Authentication, MySQL, SQLite, GORM and sqlc are not selectable because they are not implemented. Gin is labeled as a preview.
 
 Generation runs without blocking keyboard input and shows activity without estimated percentages. Verification can resolve dependencies, test and build before publishing; it has a five-minute timeout. Failures retain compiler/tool diagnostics and allow returning to review. The success screen prints the output path and native or Docker commands, including required environment loading and migrations. Those instructions remain in the terminal after exiting.
 
@@ -88,10 +88,11 @@ docker compose up --build
 | PostgreSQL / sql | pgx stdlib pool, parameterized typed repositories, transactions, migrations | Builds/unit tests passed; SQL exercised in standalone PostgreSQL; network integration blocked |
 | Redis | Optional go-redis client, readiness and cache read/write example | Passed with real client over RESP/net.Pipe fixture; external-service test pending |
 | Docker | Optional multi-stage, non-root image, selective Compose, health checks, migration service | Compose config validated; build/start pending Docker daemon/network access |
+| OpenAPI | Optional OpenAPI 3.0.3 document, embedded and served at GET /openapi.json | Passed (valid JSON spec, no extra dependency) |
 
 All three HTTP templates compose with PostgreSQL/sql, Redis and Docker. Gin is a **preview until its executable matrix passes**. GORM, sqlc, SQLite, MySQL and MongoDB are deliberately rejected with helpful errors. They are planned extensions, not advertised working integrations. The current release prioritizes complete PostgreSQL/sql and HTTP-only workflows over a large dependency matrix. See [research and decisions](docs/research.md) and [validation record](docs/validation.md).
 
-Core capabilities: typed environment configuration, slog JSON logging, strict request validation, response/error envelopes, request IDs, configurable timeouts/CORS, liveness/readiness, explicit dependency construction and graceful shutdown. Optional integrations: Redis and Docker. Authentication/JWT, authorization, OpenAPI, rate limiting, seeding, uploads, email, jobs, brokers, object storage and telemetry are not implemented. Public example endpoints need application-specific authorization before handling sensitive data.
+Core capabilities: typed environment configuration, slog JSON logging, strict request validation, response/error envelopes, request IDs, configurable timeouts/CORS, liveness/readiness, explicit dependency construction and graceful shutdown. Optional integrations: Redis, Docker and OpenAPI. Authentication/JWT, authorization, rate limiting, seeding, uploads, email, jobs, brokers, object storage and telemetry are not implemented. Public example endpoints need application-specific authorization before handling sensitive data.
 
 ## CLI reference
 
@@ -105,7 +106,7 @@ Core capabilities: typed environment configuration, slog JSON logging, strict re
 | `gbme doctor [--project PATH] [--verify]` | Locate tools, inspect manifest, optionally tidy/test/build |
 | `gbme version` | Generator version |
 
-Every command has `--help`. `new` accepts `--http`, `--database`, `--data-access`, `--redis`, `--docker`, `--module`, `--dir`, `--preset`, `--interactive`, `--non-interactive` and `--verify`. `--orm` is a compatibility alias for `--data-access`; `--orm gorm` explains that GORM is not implemented. Explicit commands do not launch the wizard unless `--interactive` is provided. `--preset full` selects Fiber + PostgreSQL/sql + Redis + Docker; individual flags override preset defaults, including `--redis=false` and `--docker=false`.
+Every command has `--help`. `new` accepts `--http`, `--database`, `--data-access`, `--redis`, `--docker`, `--openapi`, `--module`, `--dir`, `--preset`, `--interactive`, `--non-interactive` and `--verify`. `--orm` is a compatibility alias for `--data-access`; `--orm gorm` explains that GORM is not implemented. Explicit commands do not launch the wizard unless `--interactive` is provided. `--preset full` selects Fiber + PostgreSQL/sql + Redis + Docker; individual flags override preset defaults, including `--redis=false`, `--docker=false` and `--openapi=false`. `--openapi` generates an OpenAPI 3.0.3 document (openapi.json) and serves it at GET /openapi.json.
 
 `add` accepts `--project PATH` (default current directory), `--fields` and `--verify`; endpoint additionally accepts `--method GET,POST`; resource requires `--crud`. There is no duplicate `generate` alias and no automatic `remove`: safe destructive pruning is deferred.
 

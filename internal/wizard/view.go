@@ -58,7 +58,7 @@ func (m *Model) summary() string {
 	if dir == "" {
 		dir = filepath.Join(m.state.Parent, p.Name)
 	}
-	return fmt.Sprintf("Project:     %s\nOutput:      %s\nModule:      %s\nHTTP:        %s\nDatabase:    %s\nData access: %s\nRedis:       %s\nDocker:      %s\nVerify:      %s", p.Name, dir, p.Module, p.HTTP, p.Database, p.DataAccess, enabled(p.Redis), enabled(p.Docker), enabled(m.state.Verify))
+	return fmt.Sprintf("Project:     %s\nOutput:      %s\nModule:      %s\nHTTP:        %s\nDatabase:    %s\nData access: %s\nRedis:       %s\nDocker:      %s\nOpenAPI:     %s\nVerify:      %s", p.Name, dir, p.Module, p.HTTP, p.Database, p.DataAccess, enabled(p.Redis), enabled(p.Docker), enabled(p.OpenAPI), enabled(m.state.Verify))
 }
 
 func (m *Model) body() string {
@@ -98,6 +98,8 @@ func (m *Model) body() string {
 		title, description = "Include Redis?", "Adds a Redis client, readiness check and cache example. Configure REDIS_URL in the generated .env; Compose connects its Redis service automatically."
 	case Docker:
 		title, description = "Include Docker?", "Adds a Dockerfile and Compose configuration for the app and selected services. PostgreSQL migrations run before app startup."
+	case OpenAPI:
+		title, description = "Generate OpenAPI?", "Emits an OpenAPI 3.0.3 document at openapi.json and serves it at GET /openapi.json. No extra dependencies."
 	case Verify:
 		title, description = "Verify before publishing?", "Run go mod tidy, generated tests and a build in staging. Requires Go and dependency access; failed verification removes staged output."
 	case Review:
@@ -123,6 +125,9 @@ func (m *Model) body() string {
 		value := m.state.Project.Redis
 		if m.step == Docker {
 			value = m.state.Project.Docker
+		}
+		if m.step == OpenAPI {
+			value = m.state.Project.OpenAPI
 		}
 		if m.step == Verify {
 			value = m.state.Verify

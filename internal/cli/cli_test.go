@@ -110,3 +110,43 @@ func TestEndpointCommand(t *testing.T) {
 		t.Fatalf("%v %v", m, err)
 	}
 }
+
+func TestOpenAPIFlag(t *testing.T) {
+	// Enabled.
+	dir := t.TempDir()
+	if _, err := execute(t, "new", "oa-on", "--dir", dir, "--openapi", "--non-interactive"); err != nil {
+		t.Fatal(err)
+	}
+	m, err := generator.Load(filepath.Join(dir, "oa-on"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.Project.OpenAPI {
+		t.Fatal("OpenAPI not recorded in manifest")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "oa-on", "openapi.json")); err != nil {
+		t.Fatal("openapi.json missing", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "oa-on", "internal/server/openapi.go")); err != nil {
+		t.Fatal("openapi.go missing", err)
+	}
+	spec, _ := os.ReadFile(filepath.Join(dir, "oa-on", "openapi.json"))
+	if !strings.Contains(string(spec), "openapi") || !strings.Contains(string(spec), "3.0.3") {
+		t.Fatalf("spec not valid: %s", spec)
+	}
+	// Disabled by default.
+	dir2 := t.TempDir()
+	if _, err := execute(t, "new", "oa-off", "--dir", dir2, "--non-interactive"); err != nil {
+		t.Fatal(err)
+	}
+	m2, err := generator.Load(filepath.Join(dir2, "oa-off"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m2.Project.OpenAPI {
+		t.Fatal("OpenAPI should be off by default")
+	}
+	if _, err := os.Stat(filepath.Join(dir2, "oa-off", "openapi.json")); !os.IsNotExist(err) {
+		t.Fatal("openapi.json present though disabled")
+	}
+}

@@ -217,6 +217,8 @@ func (m *Model) toggle() {
 		m.state.Project.Redis = !m.state.Project.Redis
 	case Docker:
 		m.state.Project.Docker = !m.state.Project.Docker
+	case OpenAPI:
+		m.state.Project.OpenAPI = !m.state.Project.OpenAPI
 	case Verify:
 		m.state.Verify = !m.state.Verify
 	}

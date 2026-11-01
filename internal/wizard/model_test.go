@@ -93,7 +93,7 @@ func reachReview(t *testing.T, m *Model) {
 
 func TestNavigationAndConditionalSteps(t *testing.T) {
 	m := testModel(t, nil)
-	if !strings.Contains(m.View().Content, "Step 1 of 8") {
+	if !strings.Contains(m.View().Content, "Step 1 of 9") {
 		t.Fatal(m.View().Content)
 	}
 	press(m, tea.KeyEnter)
@@ -129,7 +129,7 @@ func TestNavigationAndConditionalSteps(t *testing.T) {
 	if m.state.Project.Database != "postgres" || m.state.Project.DataAccess != "sql" {
 		t.Fatal(m.state.Project)
 	}
-	if !strings.Contains(m.View().Content, "Step 4 of 9") {
+	if !strings.Contains(m.View().Content, "Step 4 of 10") {
 		t.Fatal(m.View().Content)
 	}
 	press(m, tea.KeyEnter)
@@ -470,6 +470,50 @@ func TestVerificationFailureIntegration(t *testing.T) {
 	entries, err := os.ReadDir(m.state.Parent)
 	if err != nil || len(entries) != 0 {
 		t.Fatalf("left partial output: %v %v", entries, err)
+	}
+}
+
+func TestOpenAPIStepTogglesAndRenders(t *testing.T) {
+	m := testModel(t, nil)
+	typeText(m, "billing-api")
+	m.state.Project.OpenAPI = true
+	reachReview(t, m)
+	if !m.state.Project.OpenAPI {
+		t.Fatal("OpenAPI selection lost")
+	}
+	// Step through to the OpenAPI step directly.
+	m.enter(OpenAPI)
+	if !strings.Contains(m.View().Content, "Generate OpenAPI?") {
+		t.Fatal("OpenAPI step not reached", m.View().Content)
+	}
+	if !strings.Contains(m.View().Content, "[x]") {
+		t.Fatal("OpenAPI not shown as enabled", m.View().Content)
+	}
+	// Toggle it off and confirm the view updates.
+	press(m, tea.KeySpace)
+	if m.state.Project.OpenAPI {
+		t.Fatal("OpenAPI toggle did not disable")
+	}
+	if !strings.Contains(m.View().Content, "[ ]") {
+		t.Fatal("OpenAPI not shown as disabled", m.View().Content)
+	}
+	// Re-enable and confirm the generated project includes the spec.
+	m.state.Project.OpenAPI = true
+	press(m, tea.KeyEnter) // OpenAPI -> Verify
+	press(m, tea.KeyEnter) // Verify -> Review
+	complete(t, m, press(m, tea.KeyEnter))
+	manifest, err := generator.Load(m.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !manifest.Project.OpenAPI {
+		t.Fatal("manifest did not record OpenAPI")
+	}
+	if _, err := os.Stat(filepath.Join(m.dir, "openapi.json")); err != nil {
+		t.Fatal("openapi.json not generated", err)
+	}
+	if _, err := os.Stat(filepath.Join(m.dir, "internal/server/openapi.go")); err != nil {
+		t.Fatal("openapi.go not generated", err)
 	}
 }
 

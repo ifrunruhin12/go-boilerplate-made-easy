@@ -2,6 +2,7 @@ package generator
 
 import (
 	"context"
+	"encoding/json"
 	"go-boiletplate-made-easy/internal/config"
 	"go/parser"
 	"go/token"
@@ -50,6 +51,32 @@ func TestTemplateMatrix(t *testing.T) {
 				if !optional && strings.Contains(mod, "go-redis") {
 					t.Fatal("unselected Redis dependency")
 				}
+			}
+			// OpenAPI composes only when enabled; spec is valid JSON.
+			oa := config.Project{Name: "matrix", HTTP: http, Database: db, OpenAPI: true}
+			oa.Defaults()
+			filesOA, errOA := e.compose(oa, []config.Resource{testResource(db == "postgres")})
+			if errOA != nil {
+				t.Fatalf("%+v openapi: %v", oa, errOA)
+			}
+			spec, okOA := filesOA["openapi.json"]
+			if !okOA {
+				t.Fatal("openapi.json missing when enabled")
+			}
+			if !json.Valid(spec.body) {
+				t.Fatalf("openapi.json not valid JSON: %s", spec.body)
+			}
+			if _, okOA = filesOA["internal/server/openapi.go"]; !okOA {
+				t.Fatal("openapi.go missing when enabled")
+			}
+			off := config.Project{Name: "matrix"}
+			off.Defaults()
+			filesOff, errOff := e.compose(off, nil)
+			if errOff != nil {
+				t.Fatalf("%+v disabled: %v", off, errOff)
+			}
+			if _, okOA := filesOff["openapi.json"]; okOA {
+				t.Fatal("openapi.json present though disabled")
 			}
 		}
 	}
@@ -209,6 +236,25 @@ func TestMigrationSequence(t *testing.T) {
 	}
 	if _, err = os.Stat(filepath.Join(dir, "migrations/000006_products.up.sql")); err != nil {
 		t.Fatal(err)
+	}
+}
+func TestAddRegeneratesOpenAPISpec(t *testing.T) {
+	e := Engine{}
+	dir, err := e.New(context.Background(), t.TempDir(), config.Project{Name: "api", OpenAPI: true}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := testResource(false)
+	r.Methods = []string{"GET", "POST"}
+	if err = e.Add(context.Background(), dir, r, false); err != nil {
+		t.Fatal(err)
+	}
+	spec, err := os.ReadFile(filepath.Join(dir, "openapi.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(spec), "/api/v1/products") {
+		t.Fatal("spec did not regenerate with the new resource")
 	}
 }
 func TestRequireDatabaseAndLock(t *testing.T) {

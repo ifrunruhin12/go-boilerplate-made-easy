@@ -52,6 +52,7 @@ type Data struct {
 	Resources []config.Resource
 	Resource  config.Resource
 	Version   int
+	Spec      string
 }
 type Engine struct{ Version string }
 
@@ -88,6 +89,13 @@ func add(files map[string]artifact, path, name, feature string, d Data) error {
 func (e Engine) compose(p config.Project, resources []config.Resource) (map[string]artifact, error) {
 	d := Data{Project: p, Resources: resources}
 	files := map[string]artifact{}
+	if p.OpenAPI {
+		spec, err := OpenAPISpec(p, resources)
+		if err != nil {
+			return nil, err
+		}
+		d.Spec = string(spec)
+	}
 	specs := [][3]string{
 		{"go.mod", "base/go.mod", "core"}, {"cmd/server/main.go", "base/main.go", "core"},
 		{"internal/config/config.go", "base/config.go", "core"}, {"internal/config/config_test.go", "base/config_test.go", "core"},
@@ -96,6 +104,9 @@ func (e Engine) compose(p config.Project, resources []config.Resource) (map[stri
 		{"internal/server/server.go", p.HTTP + "/server.go", "http"},
 		{"internal/server/server_test.go", p.HTTP + "/server_test.go", "http"},
 		{"internal/server/resources_gen.go", p.HTTP + "/routes.go", "http"},
+	}
+	if p.OpenAPI {
+		specs = append(specs, [3]string{"openapi.json", "openapi/openapi.json", "openapi"}, [3]string{"internal/server/openapi.go", "openapi/openapi.go", "openapi"})
 	}
 	if p.Database == "postgres" {
 		specs = append(specs, [3]string{"internal/database/database.go", "postgres/database.go", "database"}, [3]string{"internal/database/database_test.go", "postgres/database_test.go", "database"}, [3]string{"migrations/000001_notes.up.sql", "postgres/notes.up.sql", "database"}, [3]string{"migrations/000001_notes.down.sql", "postgres/notes.down.sql", "database"}, [3]string{"internal/database/notes.go", "postgres/notes.go", "database"})
@@ -156,6 +167,13 @@ func manifest(p config.Project, rs []config.Resource, v string, files map[string
 	}
 	if p.Docker {
 		m.Features["docker"] = Feature{Requires: []string{"core"}}
+	}
+	if p.OpenAPI {
+		shared := []string{"cmd/server/main.go", "internal/config/config.go", "internal/config/config_test.go", "internal/server/server.go", "internal/server/server_test.go", "go.mod", ".env.example", "README.md", "openapi.json"}
+		if p.Docker {
+			shared = append(shared, "Dockerfile", "compose.yaml")
+		}
+		m.Features["openapi"] = Feature{Requires: []string{"core"}, SharedFiles: shared}
 	}
 	for _, r := range rs {
 		req := []string{"http"}
@@ -432,7 +450,8 @@ func (e Engine) Add(ctx context.Context, root string, r config.Resource, verify 
 	updates := map[string]artifact{}
 	route := "internal/server/resources_gen.go"
 	for path, a := range files {
-		if path == route || strings.HasPrefix(path, "internal/"+r.Name+"/") || (strings.HasPrefix(path, "migrations/") && strings.Contains(path, "_"+r.Name+".")) {
+		isOpenAPI := path == "openapi.json" || path == "internal/server/openapi.go"
+		if path == route || strings.HasPrefix(path, "internal/"+r.Name+"/") || (strings.HasPrefix(path, "migrations/") && strings.Contains(path, "_"+r.Name+".")) || (m.Project.OpenAPI && isOpenAPI) {
 			updates[path] = a
 		}
 	}
@@ -451,10 +470,10 @@ func (e Engine) Add(ctx context.Context, root string, r config.Resource, verify 
 			}
 		}
 		b, err := os.ReadFile(filepath.Join(root, path))
-		if path == route {
+		if path == route || (m.Project.OpenAPI && (path == "openapi.json" || path == "internal/server/openapi.go")) {
 			owner, ok := m.Files[path]
 			if err != nil || !ok || digest(b) != owner.SHA256 {
-				return fmt.Errorf("%s was modified; move custom registrations to server.go before regenerating", path)
+				return fmt.Errorf("%s was modified; restore the generated file before regenerating", path)
 			}
 		} else if !os.IsNotExist(err) {
 			return fmt.Errorf("refusing to overwrite %s", path)
@@ -543,7 +562,14 @@ func (e Engine) Add(ctx context.Context, root string, r config.Resource, verify 
 		}
 	}
 	sort.Strings(paths)
+	// Files that already exist and are regenerated (openapi.json / openapi.go)
+	// are moved atomically from staging rather than created exclusively.
+	renamed := []string{}
 	for _, path := range paths {
+		if m.Project.OpenAPI && (path == "openapi.json" || path == "internal/server/openapi.go") {
+			renamed = append(renamed, path)
+			continue
+		}
 		dest := filepath.Join(root, path)
 		dir := filepath.Dir(dest)
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -568,6 +594,13 @@ func (e Engine) Add(ctx context.Context, root string, r config.Resource, verify 
 			rollback()
 			return err
 		}
+	}
+	for _, path := range renamed {
+		if err = os.Rename(filepath.Join(stage, path), filepath.Join(root, path)); err != nil {
+			rollback()
+			return err
+		}
+		registryChanged = true
 	}
 	if err = os.Rename(filepath.Join(stage, route), filepath.Join(root, route)); err != nil {
 		rollback()

@@ -23,6 +23,7 @@ const (
 	DataAccess
 	Redis
 	Docker
+	OpenAPI
 	Verify
 	Review
 )
@@ -56,7 +57,7 @@ func (s State) Steps() []Step {
 	if s.Project.Database != "none" {
 		steps = append(steps, DataAccess)
 	}
-	return append(steps, Redis, Docker, Verify, Review)
+	return append(steps, Redis, Docker, OpenAPI, Verify, Review)
 }
 
 func (s *State) SelectDatabase(database string) {

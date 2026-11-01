@@ -19,6 +19,7 @@ type Project struct {
 	DataAccess string `json:"data_access"`
 	Redis      bool   `json:"redis"`
 	Docker     bool   `json:"docker"`
+	OpenAPI    bool   `json:"openapi"`
 }
 
 func (p *Project) Defaults() {
