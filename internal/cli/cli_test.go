@@ -62,27 +62,34 @@ func TestInvalidFlags(t *testing.T) {
 		}
 	}
 }
-func TestWizard(t *testing.T) {
-	var out bytes.Buffer
-	cmd := New("test", strings.NewReader("wrong\nfiber\npostgres\nyes\nno\n"), &out)
-	root := t.TempDir()
-	cmd.SetArgs([]string{"new", "wizard", "--dir", root, "--interactive"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	m, err := generator.Load(filepath.Join(root, "wizard"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m.Project.HTTP != "fiber" || !m.Project.Redis || m.Project.Docker {
-		t.Fatal(m.Project)
+func TestWizardRequiresTerminal(t *testing.T) {
+	for _, args := range [][]string{nil, {"new", "wizard", "--interactive"}} {
+		out, err := execute(t, args...)
+		if err == nil || !strings.Contains(err.Error(), "interactive terminal") || out != "" {
+			t.Fatalf("%v: %q %v", args, out, err)
+		}
 	}
 }
-func TestWizardEOF(t *testing.T) {
+
+func TestExplicitNewDoesNotPrompt(t *testing.T) {
+	for _, flags := range [][]string{nil, {"--http", "gin", "--database", "postgres", "--docker"}} {
+		dir := t.TempDir()
+		args := append([]string{"new", "api", "--dir", dir}, flags...)
+		out, err := execute(t, args...)
+		if err != nil || !strings.Contains(out, "Created") {
+			t.Fatalf("%v: %s %v", args, out, err)
+		}
+		if _, err := generator.Load(filepath.Join(dir, "api")); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestWizardNonTerminalLeavesNoFiles(t *testing.T) {
 	dir := t.TempDir()
 	_, err := execute(t, "new", "eof", "--dir", dir, "--interactive")
 	if err == nil {
-		t.Fatal("expected EOF error")
+		t.Fatal("expected terminal error")
 	}
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 0 {
@@ -101,5 +108,45 @@ func TestEndpointCommand(t *testing.T) {
 	m, err := generator.Load(root)
 	if err != nil || len(m.Resources) != 1 {
 		t.Fatalf("%v %v", m, err)
+	}
+}
+
+func TestOpenAPIFlag(t *testing.T) {
+	// Enabled.
+	dir := t.TempDir()
+	if _, err := execute(t, "new", "oa-on", "--dir", dir, "--openapi", "--non-interactive"); err != nil {
+		t.Fatal(err)
+	}
+	m, err := generator.Load(filepath.Join(dir, "oa-on"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.Project.OpenAPI {
+		t.Fatal("OpenAPI not recorded in manifest")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "oa-on", "openapi.json")); err != nil {
+		t.Fatal("openapi.json missing", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "oa-on", "internal/server/openapi.go")); err != nil {
+		t.Fatal("openapi.go missing", err)
+	}
+	spec, _ := os.ReadFile(filepath.Join(dir, "oa-on", "openapi.json"))
+	if !strings.Contains(string(spec), "openapi") || !strings.Contains(string(spec), "3.0.3") {
+		t.Fatalf("spec not valid: %s", spec)
+	}
+	// Disabled by default.
+	dir2 := t.TempDir()
+	if _, err := execute(t, "new", "oa-off", "--dir", dir2, "--non-interactive"); err != nil {
+		t.Fatal(err)
+	}
+	m2, err := generator.Load(filepath.Join(dir2, "oa-off"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m2.Project.OpenAPI {
+		t.Fatal("OpenAPI should be off by default")
+	}
+	if _, err := os.Stat(filepath.Join(dir2, "oa-off", "openapi.json")); !os.IsNotExist(err) {
+		t.Fatal("openapi.json present though disabled")
 	}
 }
