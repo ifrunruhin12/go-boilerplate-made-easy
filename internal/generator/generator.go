@@ -7,6 +7,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go-boiletplate-made-easy/internal/config"
 	"go/format"
@@ -57,6 +58,22 @@ type Data struct {
 type Engine struct{ Version string }
 
 func digest(b []byte) string { h := sha256.Sum256(b); return hex.EncodeToString(h[:]) }
+
+func rejectSymlinks(root, path string) error {
+	cur := root
+	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
+		cur = filepath.Join(cur, part)
+		info, err := os.Lstat(cur)
+		if err == nil && info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("refusing symlink %s", cur)
+		}
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 func render(name string, d Data) ([]byte, error) {
 	b, err := templates.ReadFile("templates/" + name + ".tmpl")
 	if err != nil {
@@ -106,7 +123,7 @@ func (e Engine) compose(p config.Project, resources []config.Resource) (map[stri
 		{"internal/server/resources_gen.go", p.HTTP + "/routes.go", "http"},
 	}
 	if p.OpenAPI {
-		specs = append(specs, [3]string{"openapi.json", "openapi/openapi.json", "openapi"}, [3]string{"internal/server/openapi.go", "openapi/openapi.go", "openapi"})
+		specs = append(specs, [3]string{"openapi.json", "openapi/openapi.json", "openapi"}, [3]string{"internal/server/openapi.go", "openapi/openapi.go", "openapi"}, [3]string{"internal/server/openapi_test.go", "openapi/openapi_test.go", "openapi"})
 	}
 	if p.Database == "postgres" {
 		specs = append(specs, [3]string{"internal/database/database.go", "postgres/database.go", "database"}, [3]string{"internal/database/database_test.go", "postgres/database_test.go", "database"}, [3]string{"migrations/000001_notes.up.sql", "postgres/notes.up.sql", "database"}, [3]string{"migrations/000001_notes.down.sql", "postgres/notes.down.sql", "database"}, [3]string{"internal/database/notes.go", "postgres/notes.go", "database"})
@@ -413,6 +430,7 @@ func (e Engine) Add(ctx context.Context, root string, r config.Resource, verify 
 	if err != nil {
 		return err
 	}
+	originals := map[string][]byte{ManifestName: oldManifest, "internal/server/resources_gen.go": oldRoutes}
 	if r.Persistent && m.Project.Database == "none" {
 		return fmt.Errorf("database-backed CRUD requires --database postgres --data-access sql at project creation; use add endpoint for an in-memory example")
 	}
@@ -457,17 +475,8 @@ func (e Engine) Add(ctx context.Context, root string, r config.Resource, verify 
 	}
 	for path := range updates {
 		// Reject symlinks at every ancestor, including a user-replaced resource directory.
-		parts := strings.Split(filepath.ToSlash(path), "/")
-		cur := root
-		for _, part := range parts {
-			cur = filepath.Join(cur, part)
-			info, err := os.Lstat(cur)
-			if err == nil && info.Mode()&os.ModeSymlink != 0 {
-				return fmt.Errorf("refusing symlink %s", cur)
-			}
-			if err != nil && !os.IsNotExist(err) {
-				return err
-			}
+		if err := rejectSymlinks(root, path); err != nil {
+			return err
 		}
 		b, err := os.ReadFile(filepath.Join(root, path))
 		if path == route || (m.Project.OpenAPI && (path == "openapi.json" || path == "internal/server/openapi.go")) {
@@ -475,6 +484,7 @@ func (e Engine) Add(ctx context.Context, root string, r config.Resource, verify 
 			if err != nil || !ok || digest(b) != owner.SHA256 {
 				return fmt.Errorf("%s was modified; restore the generated file before regenerating", path)
 			}
+			originals[path] = b
 		} else if !os.IsNotExist(err) {
 			return fmt.Errorf("refusing to overwrite %s", path)
 		}
@@ -483,7 +493,12 @@ func (e Engine) Add(ctx context.Context, root string, r config.Resource, verify 
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(stage)
+	retainStage := false
+	defer func() {
+		if !retainStage {
+			os.RemoveAll(stage)
+		}
+	}()
 	if verify {
 		err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
@@ -532,28 +547,65 @@ func (e Engine) Add(ctx context.Context, root string, r config.Resource, verify 
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	for path, original := range map[string][]byte{route: oldRoutes, ManifestName: oldManifest} {
+	checkOriginal := func(path string) error {
+		if err := rejectSymlinks(root, path); err != nil {
+			return err
+		}
 		current, err := os.ReadFile(filepath.Join(root, path))
 		if err != nil {
 			return err
 		}
-		if !bytes.Equal(current, original) {
-			return fmt.Errorf("%s changed during verification; no files published", path)
+		if !bytes.Equal(current, originals[path]) {
+			return fmt.Errorf("%s changed during verification; refusing to overwrite it", path)
+		}
+		return nil
+	}
+	for path := range originals {
+		if err := checkOriginal(path); err != nil {
+			return err
+		}
+	}
+	// Keep every replaced file in staging so a later publication failure can
+	// restore routes, both OpenAPI artifacts, and their ownership manifest.
+	backup, err := os.MkdirTemp(stage, ".gbme-backup-")
+	if err != nil {
+		return err
+	}
+	for path, body := range originals {
+		info, err := os.Stat(filepath.Join(root, path))
+		if err != nil {
+			return err
+		}
+		dest := filepath.Join(backup, path)
+		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(dest, body, info.Mode().Perm()); err != nil {
+			return err
 		}
 	}
 	var created []string
 	var dirs []string
-	registryChanged := false
-	rollback := func() {
+	var replaced []string
+	rollback := func(cause error) error {
 		for _, p := range created {
-			os.Remove(filepath.Join(root, p))
+			if err := os.Remove(filepath.Join(root, p)); err != nil && !os.IsNotExist(err) {
+				cause = errors.Join(cause, fmt.Errorf("remove %s during rollback: %w", p, err))
+			}
 		}
 		for i := len(dirs) - 1; i >= 0; i-- {
-			os.Remove(dirs[i])
+			if err := os.Remove(dirs[i]); err != nil && !os.IsNotExist(err) {
+				cause = errors.Join(cause, fmt.Errorf("remove directory during rollback: %w", err))
+			}
 		}
-		if registryChanged {
-			_ = os.WriteFile(filepath.Join(root, route), oldRoutes, 0644)
+		for i := len(replaced) - 1; i >= 0; i-- {
+			path := replaced[i]
+			if err := os.Rename(filepath.Join(backup, path), filepath.Join(root, path)); err != nil {
+				retainStage = true
+				cause = errors.Join(cause, fmt.Errorf("restore %s during rollback: %w; original files retained at %s", path, err, backup))
+			}
 		}
+		return cause
 	}
 	paths := make([]string, 0, len(updates))
 	for path := range updates {
@@ -574,15 +626,13 @@ func (e Engine) Add(ctx context.Context, root string, r config.Resource, verify 
 		dir := filepath.Dir(dest)
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			if err = os.MkdirAll(dir, 0755); err != nil {
-				rollback()
-				return err
+				return rollback(err)
 			}
 			dirs = append(dirs, dir)
 		}
 		f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 		if err != nil {
-			rollback()
-			return err
+			return rollback(err)
 		}
 		created = append(created, path)
 		_, err = f.Write(updates[path].body)
@@ -591,25 +641,17 @@ func (e Engine) Add(ctx context.Context, root string, r config.Resource, verify 
 			err = closeErr
 		}
 		if err != nil {
-			rollback()
-			return err
+			return rollback(err)
 		}
 	}
-	for _, path := range renamed {
+	for _, path := range append(renamed, route, ManifestName) {
+		if err := checkOriginal(path); err != nil {
+			return rollback(err)
+		}
 		if err = os.Rename(filepath.Join(stage, path), filepath.Join(root, path)); err != nil {
-			rollback()
-			return err
+			return rollback(err)
 		}
-		registryChanged = true
-	}
-	if err = os.Rename(filepath.Join(stage, route), filepath.Join(root, route)); err != nil {
-		rollback()
-		return err
-	}
-	registryChanged = true
-	if err = os.Rename(filepath.Join(stage, ManifestName), filepath.Join(root, ManifestName)); err != nil {
-		rollback()
-		return err
+		replaced = append(replaced, path)
 	}
 	return nil
 }

@@ -31,11 +31,17 @@ func OpenAPISpec(p config.Project, resources []config.Resource) ([]byte, error) 
 
 	schemas := map[string]any{}
 	schemas["ApiError"] = map[string]any{
-		"type": "object",
+		"type":     "object",
+		"required": []string{"code", "message"},
 		"properties": map[string]any{
 			"code":    map[string]any{"type": "string"},
 			"message": map[string]any{"type": "string"},
 		},
+	}
+	schemas["ErrorEnvelope"] = map[string]any{
+		"type":       "object",
+		"required":   []string{"error"},
+		"properties": map[string]any{"error": map[string]any{"$ref": "#/components/schemas/ApiError"}},
 	}
 	schemas["Health"] = map[string]any{
 		"type":       "object",
@@ -45,10 +51,12 @@ func OpenAPISpec(p config.Project, resources []config.Resource) ([]byte, error) 
 	paths := map[string]map[string]openapiOperation{}
 	paths["/health"] = map[string]openapiOperation{"get": opCreate("Liveness", 200, "Health")}
 	paths["/ready"] = map[string]openapiOperation{"get": opCreate("Readiness", 200, "Health")}
+	paths["/ready"]["get"].Responses["503"] = errorResponse("Dependencies unavailable")
 
 	for _, r := range resources {
 		name := schemaName(r)
 		schemas[name] = recordSchema(r)
+		schemas[name+"Input"] = inputSchema(r)
 		schemas[name+"s"] = map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/" + name}}
 
 		base := "/api/v1/" + r.Name
@@ -57,7 +65,7 @@ func OpenAPISpec(p config.Project, resources []config.Resource) ([]byte, error) 
 			ops["get"] = opList("List "+r.Name, 200, name+"s")
 		}
 		if r.Has("POST") {
-			ops["post"] = opCreate("Create "+r.Name, 201, name)
+			ops["post"] = opInput("Create "+r.Name, 201, name, nil)
 		}
 		if len(ops) > 0 {
 			paths[base] = ops
@@ -69,7 +77,7 @@ func OpenAPISpec(p config.Project, resources []config.Resource) ([]byte, error) 
 				ids["get"] = opWithParams("Get "+r.Name, 200, name, []map[string]any{idParam})
 			}
 			if r.Has("PUT") {
-				ids["put"] = opWithParams("Replace "+r.Name, 200, name, []map[string]any{idParam})
+				ids["put"] = opInput("Replace "+r.Name, 200, name, []map[string]any{idParam})
 			}
 			if r.Has("DELETE") {
 				ids["delete"] = opWithParams("Delete "+r.Name, 204, "", []map[string]any{idParam})
@@ -119,10 +127,11 @@ type openapiTag struct {
 }
 
 type openapiOperation struct {
-	Responses  map[string]any   `json:"responses,omitempty"`
-	Summary    string           `json:"summary,omitempty"`
-	Tags       []string         `json:"tags,omitempty"`
-	Parameters []map[string]any `json:"parameters,omitempty"`
+	Responses   map[string]any   `json:"responses,omitempty"`
+	Summary     string           `json:"summary,omitempty"`
+	Tags        []string         `json:"tags,omitempty"`
+	Parameters  []map[string]any `json:"parameters,omitempty"`
+	RequestBody map[string]any   `json:"requestBody,omitempty"`
 }
 
 // schemaName returns the OpenAPI component name for a resource.
@@ -151,60 +160,77 @@ func schemaOf(typ string) map[string]any {
 
 // recordSchema builds the named schema for a resource Record (with id).
 func recordSchema(r config.Resource) map[string]any {
-	props := map[string]any{"id": schemaOf("int64")}
-	required := []string{"id"}
+	schema := inputSchema(r)
+	schema["properties"].(map[string]any)["id"] = schemaOf("int64")
+	schema["required"] = append([]string{"id"}, schema["required"].([]string)...)
+	return schema
+}
+
+// inputSchema matches the strict JSON Input accepted by create/update handlers.
+// IDs are assigned by storage or supplied in the path, never in the JSON body.
+func inputSchema(r config.Resource) map[string]any {
+	props := map[string]any{}
+	required := []string{}
 	for _, f := range r.Fields {
 		s := schemaOf(f.Type)
 		if f.Type == "string" {
+			s["minLength"] = 1
+			s["maxLength"] = 255
 			if f.Name == "email" {
 				s["format"] = "email"
-			} else {
-				s["maxLength"] = 255
 			}
 		}
 		props[f.Name] = s
 		required = append(required, f.Name)
 	}
-	return map[string]any{"type": "object", "properties": props, "required": required}
+	return map[string]any{"type": "object", "properties": props, "required": required, "additionalProperties": false}
+}
+
+func errorResponse(description string) map[string]any {
+	return map[string]any{
+		"description": description,
+		"content": map[string]any{"application/json": map[string]any{
+			"schema": map[string]any{"$ref": "#/components/schemas/ErrorEnvelope"},
+		}},
+	}
 }
 
 // errorResponses builds the 4xx/5xx response entries shared by every operation.
 func errorResponses() map[string]any {
-	apiErrorRef := map[string]any{"$ref": "#/components/schemas/ApiError"}
-	content := map[string]any{"application/json": map[string]any{"schema": apiErrorRef}}
-	emptyContent := map[string]any{}
 	return map[string]any{
-		"400": map[string]any{"description": "Invalid input", "content": content},
-		"404": map[string]any{"description": "Not found", "content": content},
-		"500": map[string]any{"description": "Internal error", "content": content},
-		"405": map[string]any{"description": "Method not allowed", "content": emptyContent},
+		"400": errorResponse("Invalid input"),
+		"403": errorResponse("Origin is not allowed"),
+		"404": errorResponse("Not found"),
+		"405": errorResponse("Method not allowed"),
+		"500": errorResponse("Internal error"),
 	}
 }
 
 func successResponse(status int, dataRef string) map[string]any {
-	data := map[string]any{"$ref": "#/components/schemas/" + dataRef}
-	if dataRef == "" {
-		data = map[string]any{}
-	}
-	responses := map[string]any{
-		fmt.Sprintf("%d", status): map[string]any{
-			"description": "Success",
-			"content": map[string]any{
-				"application/json": map[string]any{
-					"schema": map[string]any{
-						"type":       "object",
-						"properties": map[string]any{"data": data, "error": map[string]any{"$ref": "#/components/schemas/ApiError"}},
-					},
-				},
+	response := map[string]any{"description": "Success"}
+	if status != 204 && dataRef != "" {
+		response["content"] = map[string]any{"application/json": map[string]any{
+			"schema": map[string]any{
+				"type":       "object",
+				"required":   []string{"data"},
+				"properties": map[string]any{"data": map[string]any{"$ref": "#/components/schemas/" + dataRef}},
 			},
-		},
+		}}
 	}
-	for k, v := range errorResponses() {
-		if _, exists := responses[k]; !exists {
-			responses[k] = v
-		}
-	}
+	responses := errorResponses()
+	responses[fmt.Sprintf("%d", status)] = response
 	return responses
+}
+
+func opInput(summary string, status int, schema string, params []map[string]any) openapiOperation {
+	op := opWithParams(summary, status, schema, params)
+	op.RequestBody = map[string]any{
+		"required": true,
+		"content": map[string]any{"application/json": map[string]any{
+			"schema": map[string]any{"$ref": "#/components/schemas/" + schema + "Input"},
+		}},
+	}
+	return op
 }
 
 // opWithParams builds an operation with the given path/query parameters.

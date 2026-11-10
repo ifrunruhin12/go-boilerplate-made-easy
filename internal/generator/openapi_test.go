@@ -3,6 +3,7 @@ package generator
 import (
 	"encoding/json"
 	"go-boiletplate-made-easy/internal/config"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -65,6 +66,109 @@ func TestOpenAPISpec(t *testing.T) {
 			t.Fatalf("Products schema missing %s", f)
 		}
 	}
+}
+
+func TestOpenAPIRequestBodies(t *testing.T) {
+	for _, persistent := range []bool{false, true} {
+		p := config.Project{Name: "api", Database: "postgres"}
+		p.Defaults()
+		r := testResource(persistent)
+		if !persistent {
+			r.Methods = []string{"GET", "POST"}
+		}
+		doc := decodeOpenAPI(t, p, []config.Resource{r})
+		paths := doc["paths"].(map[string]any)
+		schemas := doc["components"].(map[string]any)["schemas"].(map[string]any)
+		for path, raw := range paths {
+			for method, raw := range raw.(map[string]any) {
+				op := raw.(map[string]any)
+				body, hasBody := op["requestBody"]
+				if method != "post" && method != "put" {
+					if hasBody {
+						t.Errorf("%s %s unexpectedly accepts a request body", method, path)
+					}
+					continue
+				}
+				if !hasBody {
+					t.Fatalf("%s %s missing request body", method, path)
+				}
+				request := body.(map[string]any)
+				if request["required"] != true {
+					t.Fatal("request body must be required")
+				}
+				ref := request["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)["$ref"]
+				if ref != "#/components/schemas/productsInput" {
+					t.Fatalf("unexpected input reference: %v", ref)
+				}
+				input := schemas["productsInput"].(map[string]any)
+				props := input["properties"].(map[string]any)
+				required := input["required"].([]any)
+				if _, ok := props["id"]; ok || input["additionalProperties"] != false {
+					t.Fatal("input must reject IDs and unknown fields")
+				}
+				if len(required) != len(r.Fields) {
+					t.Fatal("required input fields differ from the handler")
+				}
+				for _, f := range r.Fields {
+					if !slices.Contains(required, any(f.Name)) || props[f.Name] == nil {
+						t.Fatalf("missing required input field %s", f.Name)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestOpenAPIResponseContracts(t *testing.T) {
+	p := config.Project{Name: "api", Database: "postgres"}
+	p.Defaults()
+	doc := decodeOpenAPI(t, p, []config.Resource{testResource(true)})
+	paths := doc["paths"].(map[string]any)
+	schemas := doc["components"].(map[string]any)["schemas"].(map[string]any)
+	envelope := schemas["ErrorEnvelope"].(map[string]any)
+	if !slices.Contains(envelope["required"].([]any), any("error")) ||
+		envelope["properties"].(map[string]any)["error"].(map[string]any)["$ref"] != "#/components/schemas/ApiError" {
+		t.Fatal("error responses must wrap code/message in error")
+	}
+	for path, raw := range paths {
+		for method, raw := range raw.(map[string]any) {
+			responses := raw.(map[string]any)["responses"].(map[string]any)
+			for status, raw := range responses {
+				response := raw.(map[string]any)
+				if status == "204" {
+					if _, ok := response["content"]; ok {
+						t.Fatal("204 must not advertise a response body")
+					}
+					continue
+				}
+				schema := response["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+				if status[0] == '2' {
+					if !slices.Contains(schema["required"].([]any), any("data")) {
+						t.Fatalf("%s %s success must include data", method, path)
+					}
+				} else if schema["$ref"] != "#/components/schemas/ErrorEnvelope" {
+					t.Fatalf("%s %s %s does not use the error envelope", method, path, status)
+				}
+			}
+		}
+	}
+	ready := paths["/ready"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)
+	if ready["503"] == nil {
+		t.Fatal("readiness must document unavailable dependencies")
+	}
+}
+
+func decodeOpenAPI(t *testing.T, p config.Project, resources []config.Resource) map[string]any {
+	t.Helper()
+	body, err := OpenAPISpec(p, resources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatal(err)
+	}
+	return doc
 }
 
 func TestOpenAPISpecEndpointMethodsOnly(t *testing.T) {

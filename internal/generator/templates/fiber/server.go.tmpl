@@ -42,7 +42,7 @@ func New(c config.Config,d Dependencies)*Server{
  app.Get("/health",func(f *fiber.Ctx)error{return f.JSON(api.Success(fiber.Map{"status":"ok"}))})
  app.Get("/ready",func(f *fiber.Ctx)error{if err:=ready(f.UserContext(),d);err!=nil{d.Logger.Warn("readiness failed");return f.Status(503).JSON(api.Failure("not_ready","dependencies unavailable"))};return f.JSON(api.Success(fiber.Map{"status":"ready"}))})
 {{if .Redis}} app.Get("/api/v1/cache/example",func(f *fiber.Ctx)error{value,err:=d.Cache.Example(f.UserContext());if err!=nil{status,body:=api.ErrorResponse(err);return f.Status(status).JSON(body)};return f.JSON(api.Success(fiber.Map{"value":value}))})
-{{end}}{{if .OpenAPI}} app.Get("/openapi.json",func(f *fiber.Ctx)error{f.Response().Header().Set("Content-Type","application/json");return f.SendString(string(openapiSpec))})
+{{end}}{{if .OpenAPI}} app.Get("/openapi.json",func(f *fiber.Ctx)error{f.Set("Content-Type","application/json");return f.Send(openapiSpec)})
 {{end}} registerResources(app,d)
  app.Use(func(f *fiber.Ctx)error{return f.Status(404).JSON(api.Failure("not_found","route not found"))})
  return &Server{App:app}

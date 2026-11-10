@@ -51,7 +51,7 @@ jobs:
       - name: Verify generated applications with their minimum Go version
         run: |
           for http in stdlib gin fiber; do
-            ./bin/gbme new "minimum-$http" --http "$http" --database postgres --redis --docker --non-interactive --verify
+            ./bin/gbme new "minimum-$http" --http "$http" --database postgres --redis --docker --openapi --non-interactive --verify
             ./bin/gbme add resource products --project "minimum-$http" --fields name:string,active:bool --crud --verify
           done
   docker:

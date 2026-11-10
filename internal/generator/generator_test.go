@@ -276,7 +276,7 @@ func TestExecutableStdlib(t *testing.T) {
 		t.Skip("generated-project execution disabled by -short")
 	}
 	e := Engine{}
-	dir, err := e.New(context.Background(), t.TempDir(), config.Project{Name: "executable"}, true)
+	dir, err := e.New(context.Background(), t.TempDir(), config.Project{Name: "executable", OpenAPI: true}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,6 +297,7 @@ func TestExecutableMatrix(t *testing.T) {
 	}
 	for _, p := range []config.Project{{Name: "fiber-api", HTTP: "fiber"}, {Name: "postgres-api", Database: "postgres"}, {Name: "redis-api", Redis: true}, {Name: "full-api", HTTP: "fiber", Database: "postgres", Redis: true, Docker: true}, {Name: "stdlib-full", HTTP: "stdlib", Database: "postgres", Redis: true, Docker: true}} {
 		t.Run(p.Name, func(t *testing.T) {
+			p.OpenAPI = true
 			e := Engine{}
 			dir, err := e.New(context.Background(), t.TempDir(), p, true)
 			if err != nil {
@@ -314,7 +315,7 @@ func TestExecutableMatrix(t *testing.T) {
 	if os.Getenv("GBME_GIN_MATRIX") == "1" {
 		t.Run("gin", func(t *testing.T) {
 			e := Engine{}
-			dir, err := e.New(context.Background(), t.TempDir(), config.Project{Name: "gin-api", HTTP: "gin", Database: "postgres", Redis: true, Docker: true}, true)
+			dir, err := e.New(context.Background(), t.TempDir(), config.Project{Name: "gin-api", HTTP: "gin", Database: "postgres", Redis: true, Docker: true, OpenAPI: true}, true)
 			if err != nil {
 				t.Fatal(err)
 			}
