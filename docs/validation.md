@@ -1,6 +1,28 @@
-# Validation record — 2026-10-26
+# Validation record
 
-The local toolchain is Go 1.27.3 on Linux; the minimum declared version is Go 1.24. Source/build compatibility with the minimum toolchain is assigned to the checked-in CI matrix and has not been executed locally.
+The local toolchain is Go 1.27.3 on Linux. The CLI now requires Go 1.25 for Charm v2; generated applications still declare Go 1.24. Compatibility with those minimum toolchains is assigned to the checked-in CI jobs and has not been executed locally.
+
+## OpenAPI merge-readiness fixes — 2026-11-10
+
+- Fixed the Fiber OpenAPI route to use the native response-header API. Generated OpenAPI-enabled stdlib, Gin and Fiber applications now compile, test and build, both at creation and after adding resources.
+- POST and PUT document required JSON input bodies containing the resource fields, excluding the ID and rejecting unknown properties. Responses use the actual success/error envelopes; DELETE 204 has no response body. Readiness 503 and CORS 403 errors use the same documented error envelope.
+- Resource additions recheck routes, the manifest and both OpenAPI artifacts after verification and immediately before replacement. Existing edits and symlinks introduced during verification are refused. Publication keeps originals and restores every replaced file on failure, preserving original permissions; if restoration itself fails, the error reports retained backups for recovery.
+- Regression tests cover missing request bodies, required input fields, response envelopes, empty 204 responses, modified files, concurrent edits, verification-time symlinks and failed publication after the first OpenAPI replacement. Generated tests request `/openapi.json` and compare the served JSON with the on-disk document.
+- `GBME_MATRIX=1 GBME_GIN_MATRIX=1 go test -race -count=1 ./...`, `go vet ./...` and `make build` passed locally. The matrix includes OpenAPI-enabled no-database and PostgreSQL applications, optional Redis/Docker combinations, and verified resource additions. Live PostgreSQL/Redis services and Docker startup were not rerun locally for these fixes.
+- The generated-minimum CI job now enables OpenAPI for stdlib/Gin/Fiber on Go 1.24. The prior branch head (`f35dd4b`) passed all GitHub validation jobs, including Docker and minimum toolchains, but its executable matrix omitted OpenAPI. The new commit still needs its own CI run after pushing.
+
+The records below describe earlier validation and its environmental limits.
+
+## Interactive wizard update
+
+- Added the actual Bubble Tea v2 wizard, Bubbles inputs/spinner/viewport, and Lip Gloss styling. `gbme` starts the wizard on a suitable terminal; explicit `new` calls use flags unless `--interactive` is requested. Non-terminal input/output, CI and dumb terminals receive an actionable error instead of prompting.
+- Model tests drive navigation, text editing, selections, conditional SQL visibility, project/module persistence, compatibility errors, invalid/existing/symlink destinations, cancellation and cleanup waiting, failure/retry, duplicate-submission prevention, narrow layouts, plain output and next commands. The real generator is exercised across all 12 framework/database/optional-feature combinations; a stdlib wizard flow additionally verifies the generated module.
+- `go test -short ./...`, `GBME_MATRIX=1 go test -race -count=1 ./...`, `go vet ./...` and `make build` passed during implementation using the offline cache described below. These do not establish Gin compilation or live database/Redis/Docker startup.
+- A real pseudo-terminal smoke test launched bare `gbme`, entered a name, changed HTTP/database choices with arrow keys, enabled Redis/Docker with Space, reviewed the summary, generated, and exited. No project existed before confirmation. The generated manifest/files matched stdlib + PostgreSQL/sql + Redis + Docker, and persistent success output showed the correct absolute path, `.env` copy and Compose startup commands. Terminal modes were restored on exit.
+- The separate Gin executable test was attempted and remains blocked by the missing cached Gin v1.11.0 dependency. Its templates and wizard integration render successfully; it remains labeled preview.
+- CI now builds/tests the CLI on Go 1.25 and stable. A separate job builds the CLI on 1.25, switches to Go 1.24, and verifies generated stdlib/Gin/Fiber PostgreSQL/Redis/Docker apps and CRUD additions. This keeps generated-app minimum-version coverage independent of the TUI's requirements.
+
+The original pre-TUI validation record follows; its coverage figures refer to that earlier implementation.
 
 ## Passed
 

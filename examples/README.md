@@ -6,6 +6,8 @@
 | postgres-api | stdlib, PostgreSQL/sql, Docker | Persistent products CRUD |
 | toolbox | Fiber, PostgreSQL/sql, Redis, Docker | Products CRUD and in-memory users |
 
+OpenAPI is available on all projects via `--openapi` or the wizard. It emits an OpenAPI 3.0.3 document (`openapi.json`) that is embedded and served at `GET /openapi.json`, with no additional dependency. Add it to any example when recreating: `gbme new my-api --openapi ...`.
+
 Each directory has its own Go module, generated manifest, README, configuration and tests. They were generated through the compiled CLI with `--verify`. No example imports the generator. Gin remains a template preview pending dependency access; use `gbme new gin-api --http gin --verify` to validate it in your environment.
 
 ```sh
