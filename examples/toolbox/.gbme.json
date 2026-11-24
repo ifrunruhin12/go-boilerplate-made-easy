@@ -8,9 +8,28 @@
     "database": "postgres",
     "data_access": "sql",
     "redis": true,
-    "docker": true
+    "docker": true,
+    "openapi": false
   },
   "resources": [
+    {
+      "name": "users",
+      "fields": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "persistent": false
+    },
     {
       "name": "products",
       "fields": [
@@ -35,28 +54,11 @@
         "GET",
         "POST",
         "PUT",
+        "PATCH",
         "DELETE"
       ],
       "migration_version": 2,
       "persistent": true
-    },
-    {
-      "name": "users",
-      "fields": [
-        {
-          "name": "name",
-          "type": "string"
-        },
-        {
-          "name": "email",
-          "type": "string"
-        }
-      ],
-      "methods": [
-        "GET",
-        "POST"
-      ],
-      "persistent": false
     }
   ],
   "files": {
@@ -142,35 +144,35 @@
     },
     "internal/products/handler.go": {
       "feature": "resource:products",
-      "sha256": "2cff45ee1f012ffb822caaee7e2477b972b3b3c023e0aed3fffd4867b935866f"
+      "sha256": "8242905550a69b4dda565a0e0a0b0e6cb1eb266b6b6938eafe98c5d666641eaf"
     },
     "internal/products/handler_test.go": {
       "feature": "resource:products",
-      "sha256": "ec687e2ff8b5b05850607ad2f40ca3cd5687d2feb28be10d985c6609a6e8cab0"
+      "sha256": "a2401ee9e5a53015c2d708f65514e6b91e42c60552b298c52979a30b2afc2df8"
     },
     "internal/products/model.go": {
       "feature": "resource:products",
-      "sha256": "0df0eb29a85d1f0947a9df35eb755ecc7b1144b5b541f50baf294701c96da611"
+      "sha256": "d8d4c7839b250266a07c13d46ea3737924256f1a0f95b895ae0935ce852aaf2a"
     },
     "internal/products/repository.go": {
       "feature": "resource:products",
-      "sha256": "d406445dbe5d116fac442b40f1051108991bf0f7123e723c474f2bf0ea2d5898"
+      "sha256": "93606a65f9f4cc4fd9a14d075fae56f2a5794c6b1d8866af03413ed088ccbfbd"
     },
     "internal/products/repository_test.go": {
       "feature": "resource:products",
-      "sha256": "504cd9445733b619b65396b6a6509165300a2b855da5d41d3c44a7a01b895f9b"
+      "sha256": "71d4c54362ad88d0fb9b3d992318d9276b96a71dbb593e49c772f33a3f52c3e3"
     },
     "internal/products/service.go": {
       "feature": "resource:products",
-      "sha256": "a2955a2265175cf22e8da91f3912dbedcff1206ce74a3f9d230c678063368f0e"
+      "sha256": "3d7adea196c829a96be4339acaa88e47bd381a52c97ed23b141ec673d104b715"
     },
     "internal/products/service_test.go": {
       "feature": "resource:products",
-      "sha256": "53951f855e7e25f9148ffab9ff100e705d905443e8148bc570861543d0ebd6ac"
+      "sha256": "1669bc3d0f0979a25fe3c6dbc8ade8484912b81c5ad73c16ae573221d657cd49"
     },
     "internal/server/resources_gen.go": {
       "feature": "http",
-      "sha256": "39cd3d2e44b72a44284bfe21f3a9fa90243e45ea34202785fccceb055f099947"
+      "sha256": "868de36c42536990a5ac63851cab5402d9ec13dc4c1c8f79b9360a7257c31745"
     },
     "internal/server/server.go": {
       "feature": "http",

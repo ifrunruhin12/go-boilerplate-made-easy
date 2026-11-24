@@ -61,6 +61,12 @@ func TestHandler(t *testing.T) {
 	if status, _ := request("PUT", path+"/1", `{ "name":"updated","price":0,"quantity":0,"active":false }`); status != 200 {
 		t.Fatalf("update: %d", status)
 	}
+	if status, _ := request("PATCH", path+"/1", `{ "name":"updated" }`); status != 200 {
+		t.Fatalf("patch: %d", status)
+	}
+	if status, _ := request("PATCH", path+"/1", `{}`); status != 400 {
+		t.Fatalf("empty patch: %d", status)
+	}
 	if status, _ := request("DELETE", path+"/1", ""); status != 204 {
 		t.Fatalf("delete: %d", status)
 	}

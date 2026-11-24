@@ -3,17 +3,19 @@ import("testing";"strings";"encoding/json";"net/http/httptest";"github.com/gin-g
 func TestHandler(t *testing.T){h:=NewHandler(NewService(NewMemoryStore()));gin.SetMode(gin.ReleaseMode);router:=gin.New();h.Register(router)
  request:=func(method,path,body string)(int,[]byte){req:=httptest.NewRequest(method,path,strings.NewReader(body));req.Header.Set("Content-Type","application/json");w:=httptest.NewRecorder();router.ServeHTTP(w,req);return w.Code,w.Body.Bytes()}
  path:="/api/v1/{{.Resource.Name}}"
-{{if .Resource.Has "POST"}} body:=`{ {{range $i,$f:=.Resource.Fields}}{{if $i}},{{end}}"{{$f.Name}}":{{$f.Sample}}{{end}} }`
- status,response:=request("POST",path,body);if status!=201{t.Fatalf("create: %d %s",status,response)};var envelope struct{Data Record `json:"data"`};if err:=json.Unmarshal(response,&envelope);err!=nil||envelope.Data.ID<1{t.Fatalf("response: %s %v",response,err)}
- for _,invalid:=range []string{`{}`,`null`,`{"unknown":true}`,body+body}{status,response=request("POST",path,invalid);if status!=400{t.Fatalf("invalid body %s: %d %s",invalid,status,response)}}
-{{end}}{{if .Resource.Has "GET"}} statusList,responseList:=request("GET",path+"?limit=20","");if statusList!=200||!json.Valid(responseList){t.Fatalf("list: %d %s",statusList,responseList)}
- if status,_:=request("GET",path+"?limit=101","");status!=400{t.Fatal("pagination not validated")}
-{{end}}{{if .Resource.Persistent}} if status,_:=request("GET",path+"/99999","");status!=404{t.Fatalf("missing record: %d",status)}
- if status,_:=request("GET",path+"/invalid","");status!=400{t.Fatalf("invalid id: %d",status)}
- if status,_:=request("PUT",path+"/1",`{ {{range $i,$f:=.Resource.Fields}}{{if $i}},{{end}}"{{$f.Name}}":{{$f.ZeroSample}}{{end}} }`);status!=200{t.Fatalf("update: %d",status)}
- if status,_:=request("DELETE",path+"/1","");status!=204{t.Fatalf("delete: %d",status)}
-{{end}}
- h.service=NewService(failingStore{NewMemoryStore()})
- {{if .Resource.Has "POST"}} if status,b:=request("POST",path,body);status!=500||strings.Contains(string(b),failure.Error()){t.Fatalf("storage error response: %d %s",status,b)}
- {{else}} if status,b:=request("GET",path,"");status!=500||strings.Contains(string(b),failure.Error()){t.Fatalf("storage error response: %d %s",status,b)}
- {{end}}}
+ {{if .Resource.Has "POST"}} body:=`{ {{range $i,$f:=.Resource.Fields}}{{if $i}},{{end}}"{{$f.Name}}":{{$f.Sample}}{{end}} }`
+  status,response:=request("POST",path,body);if status!=201{t.Fatalf("create: %d %s",status,response)};var envelope struct{Data Record `json:"data"`};if err:=json.Unmarshal(response,&envelope);err!=nil||envelope.Data.ID<1{t.Fatalf("response: %s %v",response,err)}
+  for _,invalid:=range []string{`{}`,`null`,`{"unknown":true}`,body+body}{status,response=request("POST",path,invalid);if status!=400{t.Fatalf("invalid body %s: %d %s",invalid,status,response)}}
+ {{end}}{{if .Resource.Has "GET"}} statusList,responseList:=request("GET",path+"?limit=20","");if statusList!=200||!json.Valid(responseList){t.Fatalf("list: %d %s",statusList,responseList)}
+  if status,_:=request("GET",path+"?limit=101","");status!=400{t.Fatal("pagination not validated")}
+ {{end}}{{if .Resource.Persistent}} if status,_:=request("GET",path+"/99999","");status!=404{t.Fatalf("missing record: %d",status)}
+  if status,_:=request("GET",path+"/invalid","");status!=400{t.Fatalf("invalid id: %d",status)}
+  {{if .Resource.Has "PUT"}} if status,_:=request("PUT",path+"/1",`{ {{range $i,$f:=.Resource.Fields}}{{if $i}},{{end}}"{{$f.Name}}":{{$f.ZeroSample}}{{end}} }`);status!=200{t.Fatalf("update: %d",status)}
+  {{end}}{{if .Resource.Has "PATCH"}} if status,_:=request("PATCH",path+"/1",`{ "{{(index .Resource.Fields 0).Name}}":{{(index .Resource.Fields 0).ZeroSample}} }`);status!=200{t.Fatalf("patch: %d",status)}
+  if status,_:=request("PATCH",path+"/1",`{}`);status!=400{t.Fatalf("empty patch: %d",status)}
+  {{end}}{{if .Resource.Has "DELETE"}} if status,_:=request("DELETE",path+"/1","");status!=204{t.Fatalf("delete: %d",status)}
+  {{end}} {{end}}
+  h.service=NewService(failingStore{NewMemoryStore()})
+  {{if .Resource.Has "POST"}} if status,b:=request("POST",path,body);status!=500||strings.Contains(string(b),failure.Error()){t.Fatalf("storage error response: %d %s",status,b)}
+  {{else}} if status,b:=request("GET",path,"");status!=500||strings.Contains(string(b),failure.Error()){t.Fatalf("storage error response: %d %s",status,b)}
+  {{end}}}

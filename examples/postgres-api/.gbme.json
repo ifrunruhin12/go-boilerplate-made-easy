@@ -8,7 +8,8 @@
     "database": "postgres",
     "data_access": "sql",
     "redis": false,
-    "docker": true
+    "docker": true,
+    "openapi": false
   },
   "resources": [
     {
@@ -31,6 +32,7 @@
         "GET",
         "POST",
         "PUT",
+        "PATCH",
         "DELETE"
       ],
       "migration_version": 2,
@@ -112,31 +114,31 @@
     },
     "internal/products/handler.go": {
       "feature": "resource:products",
-      "sha256": "93594a579a8315e5a21f874e0a688ac776a4dee395c9e29641b1157ec0c454df"
+      "sha256": "934553edfbee78749f98790f41eabc6141a8abe057d0df18a408502fd63e50fc"
     },
     "internal/products/handler_test.go": {
       "feature": "resource:products",
-      "sha256": "e16072ec43689d5d0846e415cd57dfedfd77739b58259b628f82e57eb3d84d2a"
+      "sha256": "3f5ef6fb0701efbb538187ee68d132026bc1a53b693dc850f28d1cacd803fa46"
     },
     "internal/products/model.go": {
       "feature": "resource:products",
-      "sha256": "37dc19f7b77921b5e5972f5ee5e328dfd21c5305c66b2b16ecee1658c3691209"
+      "sha256": "7180d727327e4431d40aaafa5543890aa2aa10c986b7b3c4745e8cea8580f14f"
     },
     "internal/products/repository.go": {
       "feature": "resource:products",
-      "sha256": "6028d2c55c0169608992f59144d3cb4f7b3b785e533b8033a8ee76a6e395ca85"
+      "sha256": "1740609d1a809145dfa6dd7ca6fcab516aafdedded0e3867fe0eb28248f18f62"
     },
     "internal/products/repository_test.go": {
       "feature": "resource:products",
-      "sha256": "bd2d8dfff9d2ed8fa206d78d0e345b1f39ad9fee5238c0f3fe30b0bf56c9ac95"
+      "sha256": "e018c67fb511f7969815d4c8601e829b1012e9a9950564ad675cc4a837787419"
     },
     "internal/products/service.go": {
       "feature": "resource:products",
-      "sha256": "6d6b10417f0f1693f1740f88a5101b56aa95d73205c2be86d77677799500ad07"
+      "sha256": "c5a995cae382e130431614389a8acd74fdba28b77f515a9f1fe0c5cc9bda7a89"
     },
     "internal/products/service_test.go": {
       "feature": "resource:products",
-      "sha256": "44fc03e3240a07c9c85bb27c269c7bb41579bbd2373c09f18d94f9f96285c4eb"
+      "sha256": "73c0d0978337c3cc6f59c6a5fb1d7bed800418323e00139fca4e0b6becbdf144"
     },
     "internal/server/resources_gen.go": {
       "feature": "http",

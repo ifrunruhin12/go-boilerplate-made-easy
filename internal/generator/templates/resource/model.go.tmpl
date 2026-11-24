@@ -10,3 +10,19 @@ func(v Input)Validate()error{
 {{end}}{{end}}return nil
 }
 func(v Input)Record()Record{return Record{ {{range .Resource.Fields}}{{.GoName}}:*v.{{.GoName}},{{end}}}}
+// PartialInput reuses Input's wire shape for PATCH semantics: any subset of
+// fields may be present. Unknown fields are still rejected by api.Decode.
+type PartialInput=Input
+// ValidatePartial enforces field-level constraints only for the fields that
+// are present in a PATCH body. It is called by the service layer after the
+// handler has rejected an empty body.
+func(v Input)ValidatePartial()error{
+{{range .Resource.Fields}}{{if eq .Type "string"}} if v.{{.GoName}}!=nil{if err:=api.ValidateString("{{.Name}}",*v.{{.GoName}});err!=nil{return err}}
+{{end}}{{if eq .Type "float64"}} if v.{{.GoName}}!=nil{if !finite(*v.{{.GoName}}){return fmt.Errorf("{{.Name}} must be finite")}}
+{{end}}{{end}}return nil
+}
+func(v Input)IsEmpty()bool{
+{{range .Resource.Fields}} if v.{{.GoName}}!=nil{return false}
+{{end}}return true
+}
+func(v Input)PatchRecord(current Record)Record{out:=current{{range .Resource.Fields}};if v.{{.GoName}}!=nil{out.{{.GoName}}=*v.{{.GoName}}};{{end}}return out}

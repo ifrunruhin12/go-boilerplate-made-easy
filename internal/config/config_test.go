@@ -27,7 +27,7 @@ func TestInvalidProjects(t *testing.T) {
 	}
 }
 func TestResourceValidation(t *testing.T) {
-	for _, tc := range []struct{ name, fields, method string }{{"users", "name:string,email:string", "GET"}, {"products", "price:float64,quantity:int64,active:bool", "POST"}} {
+	for _, tc := range []struct{ name, fields, method string }{{"users", "name:string,email:string", "GET"}, {"products", "price:float64,quantity:int64,active:bool", "POST"}, {"products", "price:float64", "PATCH"}} {
 		fields, err := ParseFields(tc.fields)
 		if err != nil {
 			t.Fatal(err)
@@ -36,7 +36,7 @@ func TestResourceValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, tc := range []struct{ name, fields, method string }{{"health", "name:string", "GET"}, {"../escape", "name:string", "GET"}, {"users", "id:int64", "GET"}, {"users", "i_d:string", "GET"}, {"users", "name:object", "GET"}, {"users", "name:string,name:string", "GET"}, {"users", "name:string", "PATCH"}, {"users", "name:string", "GET,GET"}, {"users", "validate:string", "GET"}} {
+	for _, tc := range []struct{ name, fields, method string }{{"health", "name:string", "GET"}, {"../escape", "name:string", "GET"}, {"users", "id:int64", "GET"}, {"users", "i_d:string", "GET"}, {"users", "name:object", "GET"}, {"users", "name:string,name:string", "GET"}, {"users", "name:string", "GET,GET"}, {"users", "validate:string", "GET"}} {
 		fields, err := ParseFields(tc.fields)
 		if err == nil {
 			methods := []string{tc.method}

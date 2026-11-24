@@ -34,7 +34,7 @@ func New(c config.Config,d Dependencies)*Server{
   start:=time.Now();id:=api.RequestID();g.Header("X-Request-ID",id)
   defer func(){if recovered:=recover();recovered!=nil{d.Logger.Error("handler panic","request_id",id);g.AbortWithStatusJSON(500,api.Failure("internal_error","an internal error occurred"))};d.Logger.Info("request","request_id",id,"method",g.Request.Method,"path",g.Request.URL.Path,"status",g.Writer.Status(),"duration",time.Since(start))}()
   g.Header("Vary","Origin")
-  if origin:=g.GetHeader("Origin");origin!=""{if !api.Allows(c.CORSOrigins,origin){g.AbortWithStatusJSON(403,api.Failure("cors_denied","origin is not allowed"));return};g.Header("Access-Control-Allow-Origin",origin);g.Header("Access-Control-Allow-Methods","GET,POST,PUT,DELETE,OPTIONS");g.Header("Access-Control-Allow-Headers","Content-Type,Authorization,X-Request-ID");g.Header("Access-Control-Expose-Headers","X-Request-ID")}
+  if origin:=g.GetHeader("Origin");origin!=""{if !api.Allows(c.CORSOrigins,origin){g.AbortWithStatusJSON(403,api.Failure("cors_denied","origin is not allowed"));return};g.Header("Access-Control-Allow-Origin",origin);g.Header("Access-Control-Allow-Methods","GET,POST,PUT,PATCH,DELETE,OPTIONS");g.Header("Access-Control-Allow-Headers","Content-Type,Authorization,X-Request-ID");g.Header("Access-Control-Expose-Headers","X-Request-ID")}
   if g.Request.Method=="OPTIONS"{g.AbortWithStatus(204);return}
   g.Request.Body=http.MaxBytesReader(g.Writer,g.Request.Body,api.MaxBodyBytes)
   ctx,cancel:=context.WithTimeout(g.Request.Context(),c.WriteTimeout);defer cancel();g.Request=g.Request.WithContext(ctx);g.Next()

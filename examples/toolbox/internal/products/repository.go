@@ -46,6 +46,14 @@ func (r *Repository) Create(ctx context.Context, v Record) (Record, error) {
 func (r *Repository) Update(ctx context.Context, id int64, v Record) (Record, error) {
 	return scan(r.db.QueryRowContext(ctx, `UPDATE "products" SET "name"=$2, "price"=$3, "quantity"=$4, "active"=$5 WHERE "id"=$1 RETURNING `+columns, id, v.Name, v.Price, v.Quantity, v.Active))
 }
+
+// Patch applies a partial update: each omitted field is kept from the stored
+// row. Parameters are $1 = id, $2.. = pointer to the value (or nil) per field.
+func (r *Repository) Patch(ctx context.Context, id int64, v Input) (Record, error) {
+	sql := `UPDATE "products" SET "name"=COALESCE($2,"name"), "price"=COALESCE($3,"price"), "quantity"=COALESCE($4,"quantity"), "active"=COALESCE($5,"active") WHERE "id"=$1 RETURNING ` + columns
+	var params [1 + 4]any = [1 + 4]any{id, v.Name, v.Price, v.Quantity, v.Active}
+	return scan(r.db.QueryRowContext(ctx, sql, params[:]...))
+}
 func (r *Repository) Delete(ctx context.Context, id int64) error {
 	result, err := r.db.ExecContext(ctx, `DELETE FROM "products" WHERE "id"=$1`, id)
 	if err != nil {

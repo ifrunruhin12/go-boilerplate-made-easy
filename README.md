@@ -101,7 +101,7 @@ Core capabilities: typed environment configuration, slog JSON logging, strict re
 | `gbme` | Launch the interactive project-generation wizard in a terminal |
 | `gbme new NAME` | Generate a separate Go module |
 | `gbme add endpoint NAME --fields ...` | In-memory HTTP example with GET and/or POST |
-| `gbme add resource NAME --fields ... --crud` | PostgreSQL-backed GET, POST, PUT and DELETE |
+| `gbme add resource NAME --fields ... --crud` | PostgreSQL-backed GET, POST, PUT, PATCH and DELETE |
 | `gbme list [frameworks\|databases\|features\|presets]` | Choices and validation status |
 | `gbme doctor [--project PATH] [--verify]` | Locate tools, inspect manifest, optionally tidy/test/build |
 | `gbme version` | Generator version |
@@ -117,9 +117,9 @@ gbme add endpoint users --method GET,POST --fields name:string,email:string --ve
 gbme add resource products --fields name:string,price:float64,quantity:int64,active:bool --crud --verify
 ```
 
-The second command requires a PostgreSQL project. Resource names are lowercase Go identifiers without underscores. Fields support `string`, `int`, `int64`, `float64` and `bool`; snake_case field names map to exported Go fields and JSON keys. Duplicate/reserved names and unsupported types are rejected. All input fields must be present; zero and false are valid. Strings are required, capped at 255 characters, and `email` fields receive email validation. Bodies must be single JSON objects with no unknown fields and at most 1 MiB. PUT fully replaces fields; PATCH and custom path/query specifications are deferred.
+The second command requires a PostgreSQL project. Resource names are lowercase Go identifiers without underscores. Fields support `string`, `int`, `int64`, `float64` and `bool`; snake_case field names map to exported Go fields and JSON keys. Duplicate/reserved names and unsupported types are rejected. All input fields must be present; zero and false are valid. Strings are required, capped at 255 characters, and `email` fields receive email validation. Bodies must be single JSON objects with no unknown fields and at most 1 MiB. PUT fully replaces fields; PATCH partially updates (only the fields present in the body are changed; omitted fields keep their stored value; at least one field is required). Custom path/query specifications are deferred.
 
-Generated routes are registered at `/api/v1/NAME`. GET lists accept `limit` (default 20, max 100) and `offset`; persistent resources also have `GET/PUT/DELETE /api/v1/NAME/{id}`. Responses use `{ "data": ... }` or `{ "error": { "code": ..., "message": ... } }`, with 201 for creates, 204 for deletes, 400 for invalid input and 404 for absent records. PostgreSQL queries bind all values and quote generated identifiers. In-memory examples reset on restart and cap at 10,000 records.
+Generated routes are registered at `/api/v1/NAME`. GET lists accept `limit` (default 20, max 100) and `offset`; persistent resources also have `GET/PUT/PATCH/DELETE /api/v1/NAME/{id}`. Responses use `{ "data": ... }` or `{ "error": { "code": ..., "message": ... } }`, with 201 for creates, 204 for deletes, 400 for invalid input (including an empty PATCH body) and 404 for absent records. PostgreSQL queries bind all values and quote generated identifiers. In-memory examples reset on restart and cap at 10,000 records.
 
 Each addition creates DTO/model, service/storage seam, framework-specific handler, unit tests and route registration; database resources additionally get a repository, service-gated integration test and up/down migrations. New migration versions account for existing manual migrations. Apply migrations and restart the server after adding resources. Existing domain code is preserved; only an unmodified generated route registry is replaced. A project lock protects concurrent gbme additions; failed verification publishes nothing. Ordinary publication failures roll back created files/registry. Multi-file additions are not crash-atomic; use version control and avoid editing the registry during generation.
 

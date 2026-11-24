@@ -8,6 +8,6 @@ import (
 )
 
 func registerResources(router *fiber.App, d Dependencies) {
-	res_products.NewHandler(res_products.NewService(res_products.NewRepository(d.DB))).Register(router)
 	res_users.NewHandler(res_users.NewService(res_users.NewMemoryStore())).Register(router)
+	res_products.NewHandler(res_products.NewService(res_products.NewRepository(d.DB))).Register(router)
 }

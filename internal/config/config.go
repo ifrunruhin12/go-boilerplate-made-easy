@@ -125,9 +125,9 @@ func (r Resource) Validate() error {
 	seen = map[string]bool{}
 	for _, m := range r.Methods {
 		switch m {
-		case "GET", "POST", "PUT", "DELETE":
+		case "GET", "POST", "PUT", "PATCH", "DELETE":
 		default:
-			return fmt.Errorf("method %q is unsupported; use GET,POST for endpoints or --crud for GET,POST,PUT,DELETE", m)
+			return fmt.Errorf("method %q is unsupported; use GET,POST for endpoints or --crud for GET,POST,PUT,PATCH,DELETE", m)
 		}
 		if seen[m] {
 			return fmt.Errorf("duplicate method %q", m)

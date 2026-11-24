@@ -102,7 +102,7 @@ func New(version string, in io.Reader, out io.Writer) *cobra.Command {
 	root.AddCommand(newCmd)
 	root.AddCommand(&cobra.Command{Use: "version", Short: "Print the generator version", Args: cobra.NoArgs, Run: func(*cobra.Command, []string) { fmt.Fprintln(out, "gbme", version) }})
 	root.AddCommand(&cobra.Command{Use: "list [frameworks|databases|features|presets]", Short: "List implemented choices and validation limits", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		groups := map[string]string{"frameworks": "stdlib: executable tests verified\nfiber: executable tests verified\ngin: implemented templates; executable validation requires uncached dependencies", "databases": "none/none: HTTP-only endpoints\npostgres/sql: pooled connections, repository CRUD, SQL migrations\nGORM, sqlc, SQLite, MySQL and MongoDB: planned", "features": "core: config, slog, JSON validation, request IDs, CORS, health/readiness, shutdown\nredis: optional client, cache example and integration tests\ndocker: optional multi-stage image and Compose; daemon execution needs Docker access\nopenapi: optional OpenAPI 3.0.3 document (openapi.json) served at GET /openapi.json; no extra dependencies\nresources: GET,POST,PUT,DELETE with PostgreSQL; GET,POST in-memory endpoints", "presets": "full: Fiber + PostgreSQL/sql + Redis + Docker"}
+		groups := map[string]string{"frameworks": "stdlib: executable tests verified\nfiber: executable tests verified\ngin: implemented templates; executable validation requires uncached dependencies", "databases": "none/none: HTTP-only endpoints\npostgres/sql: pooled connections, repository CRUD, SQL migrations\nGORM, sqlc, SQLite, MySQL and MongoDB: planned", "features": "core: config, slog, JSON validation, request IDs, CORS, health/readiness, shutdown\nredis: optional client, cache example and integration tests\ndocker: optional multi-stage image and Compose; daemon execution needs Docker access\nopenapi: optional OpenAPI 3.0.3 document (openapi.json) served at GET /openapi.json; no extra dependencies\nresources: GET,POST,PUT,PATCH,DELETE with PostgreSQL; GET,POST in-memory endpoints", "presets": "full: Fiber + PostgreSQL/sql + Redis + Docker"}
 		names := []string{"frameworks", "databases", "features", "presets"}
 		if len(args) > 0 {
 			if _, ok := groups[args[0]]; !ok {
@@ -130,7 +130,7 @@ func New(version string, in io.Reader, out io.Writer) *cobra.Command {
 			}
 			r := config.Resource{Name: args[0], Fields: parsed, Persistent: kind == "resource"}
 			if kind == "resource" {
-				r.Methods = []string{"GET", "POST", "PUT", "DELETE"}
+				r.Methods = []string{"GET", "POST", "PUT", "PATCH", "DELETE"}
 			} else {
 				for _, m := range strings.Split(methods, ",") {
 					m = strings.ToUpper(strings.TrimSpace(m))
@@ -157,7 +157,7 @@ func New(version string, in io.Reader, out io.Writer) *cobra.Command {
 		if kind == "endpoint" {
 			command.Flags().StringVar(&methods, "method", "GET,POST", "Comma-separated HTTP methods: GET,POST")
 		} else {
-			command.Flags().BoolVar(&crud, "crud", false, "Generate GET,POST,PUT,DELETE persistence operations")
+			command.Flags().BoolVar(&crud, "crud", false, "Generate GET,POST,PUT,PATCH,DELETE persistence operations")
 		}
 		add.AddCommand(command)
 	}

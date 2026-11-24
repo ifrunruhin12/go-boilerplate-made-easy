@@ -13,7 +13,7 @@ func TestOpenAPISpec(t *testing.T) {
 	p.Defaults()
 	p.OpenAPI = true
 	r := testResource(true)
-	r.Methods = []string{"GET", "POST", "PUT", "DELETE"}
+	r.Methods = []string{"GET", "POST", "PUT", "PATCH", "DELETE"}
 
 	body, err := OpenAPISpec(p, []config.Resource{r})
 	if err != nil {
@@ -46,17 +46,26 @@ func TestOpenAPISpec(t *testing.T) {
 		t.Fatal("products missing create op")
 	}
 	idOps := paths["/api/v1/products/{id}"].(map[string]any)
-	for _, m := range []string{"get", "put", "delete"} {
+	for _, m := range []string{"get", "put", "patch", "delete"} {
 		if _, ok := idOps[m]; !ok {
 			t.Fatalf("products/{id} missing %s op", m)
 		}
 	}
 	// Components should contain the record schema and a plural variant.
 	schemas := doc["components"].(map[string]any)["schemas"].(map[string]any)
-	for _, name := range []string{"products", "productss", "ApiError", "Health"} {
+	for _, name := range []string{"products", "productss", "productsInput", "productsPatchInput", "ApiError", "Health"} {
 		if _, ok := schemas[name]; !ok {
 			t.Fatalf("missing schema %s", name)
 		}
+	}
+	// The patch input schema must not declare required fields; the handler
+	// rejects an empty patch but any non-empty subset of properties is valid.
+	patchInput := schemas["productsPatchInput"].(map[string]any)
+	if _, hasRequired := patchInput["required"]; hasRequired {
+		t.Fatal("patch input must not declare required fields")
+	}
+	if patchInput["additionalProperties"] != false {
+		t.Fatal("patch input must reject unknown fields")
 	}
 	// The schema should include id + the four fields.
 	prod := schemas["products"].(map[string]any)
@@ -83,7 +92,7 @@ func TestOpenAPIRequestBodies(t *testing.T) {
 			for method, raw := range raw.(map[string]any) {
 				op := raw.(map[string]any)
 				body, hasBody := op["requestBody"]
-				if method != "post" && method != "put" {
+				if method != "post" && method != "put" && method != "patch" {
 					if hasBody {
 						t.Errorf("%s %s unexpectedly accepts a request body", method, path)
 					}
@@ -97,6 +106,12 @@ func TestOpenAPIRequestBodies(t *testing.T) {
 					t.Fatal("request body must be required")
 				}
 				ref := request["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)["$ref"]
+				if method == "patch" {
+					if ref != "#/components/schemas/productsPatchInput" {
+						t.Fatalf("unexpected patch input reference: %v", ref)
+					}
+					continue
+				}
 				if ref != "#/components/schemas/productsInput" {
 					t.Fatalf("unexpected input reference: %v", ref)
 				}

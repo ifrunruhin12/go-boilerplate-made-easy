@@ -57,6 +57,7 @@ func OpenAPISpec(p config.Project, resources []config.Resource) ([]byte, error) 
 		name := schemaName(r)
 		schemas[name] = recordSchema(r)
 		schemas[name+"Input"] = inputSchema(r)
+		schemas[name+"PatchInput"] = patchInputSchema(r)
 		schemas[name+"s"] = map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/" + name}}
 
 		base := "/api/v1/" + r.Name
@@ -78,6 +79,11 @@ func OpenAPISpec(p config.Project, resources []config.Resource) ([]byte, error) 
 			}
 			if r.Has("PUT") {
 				ids["put"] = opInput("Replace "+r.Name, 200, name, []map[string]any{idParam})
+			}
+			if r.Has("PATCH") {
+				op := opWithParams("Partial update "+r.Name, 200, name, []map[string]any{idParam})
+				op.RequestBody = patchBody(name)
+				ids["patch"] = op
 			}
 			if r.Has("DELETE") {
 				ids["delete"] = opWithParams("Delete "+r.Name, 204, "", []map[string]any{idParam})
@@ -186,6 +192,24 @@ func inputSchema(r config.Resource) map[string]any {
 	return map[string]any{"type": "object", "properties": props, "required": required, "additionalProperties": false}
 }
 
+// patchInputSchema is the schema for PATCH request bodies: any subset of
+// fields may be present, but unknown fields are rejected by api.Decode.
+func patchInputSchema(r config.Resource) map[string]any {
+	props := map[string]any{}
+	for _, f := range r.Fields {
+		s := schemaOf(f.Type)
+		if f.Type == "string" {
+			s["minLength"] = 1
+			s["maxLength"] = 255
+			if f.Name == "email" {
+				s["format"] = "email"
+			}
+		}
+		props[f.Name] = s
+	}
+	return map[string]any{"type": "object", "properties": props, "additionalProperties": false}
+}
+
 func errorResponse(description string) map[string]any {
 	return map[string]any{
 		"description": description,
@@ -257,4 +281,15 @@ func opList(summary string, status int, dataRef string) openapiOperation {
 // opCreate builds a create operation with no path parameters.
 func opCreate(summary string, status int, dataRef string) openapiOperation {
 	return opWithParams(summary, status, dataRef, nil)
+}
+
+// patchBody is the request body for a PATCH operation: a required JSON object
+// that references the resource's partial-input schema.
+func patchBody(resource string) map[string]any {
+	return map[string]any{
+		"required": true,
+		"content": map[string]any{"application/json": map[string]any{
+			"schema": map[string]any{"$ref": "#/components/schemas/" + resource + "PatchInput"},
+		}},
+	}
 }

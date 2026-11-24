@@ -50,6 +50,18 @@ func TestRepositoryIntegration(t *testing.T) {
 	if err != nil || got != expected {
 		t.Fatalf("update: %v %v", got, err)
 	}
+	// Partial PATCH: only the first field is set; the rest keep their values.
+	{
+		var partial Input
+		partial.Name = zeroInput().Name
+		patched, err := r.Patch(ctx, v.ID, partial)
+		if err != nil {
+			t.Fatalf("patch: %v", err)
+		}
+		if patched.Name != *zeroInput().Name {
+			t.Fatalf("patched field: %v", patched)
+		}
+	}
 	if err = r.Delete(ctx, v.ID); err != nil {
 		t.Fatal(err)
 	}

@@ -14,6 +14,7 @@ type Store interface {
 	Get(context.Context, int64) (Record, error)
 	Create(context.Context, Record) (Record, error)
 	Update(context.Context, int64, Record) (Record, error)
+	Patch(context.Context, int64, Input) (Record, error)
 	Delete(context.Context, int64) error
 }
 type Service struct{ store Store }
@@ -37,6 +38,15 @@ func (s *Service) Update(ctx context.Context, id int64, input Input) (Record, er
 		return Record{}, err
 	}
 	return s.store.Update(ctx, id, input.Record())
+}
+func (s *Service) Patch(ctx context.Context, id int64, input Input) (Record, error) {
+	if err := input.ValidatePartial(); err != nil {
+		return Record{}, err
+	}
+	if input.IsEmpty() {
+		return Record{}, fmt.Errorf("at least one field is required")
+	}
+	return s.store.Patch(ctx, id, input)
 }
 func (s *Service) Delete(ctx context.Context, id int64) error { return s.store.Delete(ctx, id) }
 
@@ -103,6 +113,21 @@ func (s *MemoryStore) Update(ctx context.Context, id int64, v Record) (Record, e
 	v.ID = id
 	s.records[id] = v
 	return v, nil
+}
+func (s *MemoryStore) Patch(ctx context.Context, id int64, v Input) (Record, error) {
+	if err := ctx.Err(); err != nil {
+		return v.Record(), err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current, ok := s.records[id]
+	if !ok {
+		return Record{}, api.ErrNotFound
+	}
+	out := v.PatchRecord(current)
+	out.ID = id
+	s.records[id] = out
+	return out, nil
 }
 func (s *MemoryStore) Delete(ctx context.Context, id int64) error {
 	if err := ctx.Err(); err != nil {

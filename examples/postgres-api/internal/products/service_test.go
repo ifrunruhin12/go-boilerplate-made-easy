@@ -45,6 +45,28 @@ func TestServiceCRUD(t *testing.T) {
 	if got != expected {
 		t.Fatalf("zero-value update: got %v expected %v", got, expected)
 	}
+	// Partial PATCH: only the first field is present; the rest keep their current values.
+	{
+		before, err := s.Get(ctx, v.ID)
+		if err != nil {
+			t.Fatalf("get before patch: %v", err)
+		}
+		first := zeroInput()
+		var partial Input
+		partial.Name = first.Name
+		got, err = s.Patch(ctx, v.ID, partial)
+		if err != nil {
+			t.Fatalf("patch: %v", err)
+		}
+		expectedPatch := before
+		expectedPatch.Name = *first.Name
+		if got != expectedPatch {
+			t.Fatalf("partial patch: got %v expected %v", got, expectedPatch)
+		}
+	}
+	if _, err = s.Patch(ctx, v.ID, Input{}); err == nil {
+		t.Fatal("accepted empty patch")
+	}
 	if err = s.Delete(ctx, v.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -71,8 +93,9 @@ type failingStore struct{ *MemoryStore }
 
 var failure = errors.New("storage unavailable")
 
-func (failingStore) Create(context.Context, Record) (Record, error)   { return Record{}, failure }
-func (failingStore) List(context.Context, int, int) ([]Record, error) { return nil, failure }
+func (failingStore) Create(context.Context, Record) (Record, error)      { return Record{}, failure }
+func (failingStore) List(context.Context, int, int) ([]Record, error)    { return nil, failure }
+func (failingStore) Patch(context.Context, int64, Input) (Record, error) { return Record{}, failure }
 func TestStorageErrors(t *testing.T) {
 	s := NewService(failingStore{NewMemoryStore()})
 	if _, err := s.Create(context.Background(), sampleInput()); !errors.Is(err, failure) {
@@ -80,6 +103,9 @@ func TestStorageErrors(t *testing.T) {
 	}
 	if _, err := s.List(context.Background(), 20, 0); !errors.Is(err, failure) {
 		t.Fatal("lost list error", err)
+	}
+	if _, err := s.Patch(context.Background(), 1, zeroInput()); !errors.Is(err, failure) {
+		t.Fatal("lost patch error", err)
 	}
 }
 

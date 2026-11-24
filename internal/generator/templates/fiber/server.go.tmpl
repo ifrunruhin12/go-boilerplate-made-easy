@@ -33,7 +33,7 @@ func New(c config.Config,d Dependencies)*Server{
   start:=time.Now();id:=api.RequestID();f.Set("X-Request-ID",id)
   defer func(){d.Logger.Info("request","request_id",id,"method",f.Method(),"path",f.Path(),"status",f.Response().StatusCode(),"duration",time.Since(start))}()
   f.Set("Vary","Origin")
-  if origin:=f.Get("Origin");origin!=""{if !api.Allows(c.CORSOrigins,origin){return f.Status(403).JSON(api.Failure("cors_denied","origin is not allowed"))};f.Set("Access-Control-Allow-Origin",origin);f.Set("Access-Control-Allow-Methods","GET,POST,PUT,DELETE,OPTIONS");f.Set("Access-Control-Allow-Headers","Content-Type,Authorization,X-Request-ID");f.Set("Access-Control-Expose-Headers","X-Request-ID")}
+  if origin:=f.Get("Origin");origin!=""{if !api.Allows(c.CORSOrigins,origin){return f.Status(403).JSON(api.Failure("cors_denied","origin is not allowed"))};f.Set("Access-Control-Allow-Origin",origin);f.Set("Access-Control-Allow-Methods","GET,POST,PUT,PATCH,DELETE,OPTIONS");f.Set("Access-Control-Allow-Headers","Content-Type,Authorization,X-Request-ID");f.Set("Access-Control-Expose-Headers","X-Request-ID")}
   if f.Method()=="OPTIONS"{return f.SendStatus(204)}
   ctx,cancel:=context.WithTimeout(f.UserContext(),c.WriteTimeout);defer cancel();f.SetUserContext(ctx)
   if err:=f.Next();err!=nil{return errorHandler(f,err)};return nil

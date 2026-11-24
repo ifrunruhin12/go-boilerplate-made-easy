@@ -13,7 +13,7 @@ import (
 )
 
 func testResource(persistent bool) config.Resource {
-	return config.Resource{Name: "products", Fields: []config.Field{{Name: "name", Type: "string"}, {Name: "price", Type: "float64"}, {Name: "quantity", Type: "int64"}, {Name: "active", Type: "bool"}}, Methods: []string{"GET", "POST", "PUT", "DELETE"}, Persistent: persistent, MigrationVersion: 2}
+	return config.Resource{Name: "products", Fields: []config.Field{{Name: "name", Type: "string"}, {Name: "price", Type: "float64"}, {Name: "quantity", Type: "int64"}, {Name: "active", Type: "bool"}}, Methods: []string{"GET", "POST", "PUT", "PATCH", "DELETE"}, Persistent: persistent, MigrationVersion: 2}
 }
 func TestTemplateMatrix(t *testing.T) {
 	e := Engine{Version: "test"}

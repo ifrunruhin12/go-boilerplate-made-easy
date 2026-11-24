@@ -1,9 +1,12 @@
 package products
 
 import (
+	"errors"
 	"net/http"
 	"postgres-api/internal/api"
 )
+
+var errEmptyPatch = errors.New("at least one field is required")
 
 type Handler struct{ service *Service }
 
@@ -13,13 +16,14 @@ func (h *Handler) Register(router *http.ServeMux) {
 	router.HandleFunc("GET /api/v1/products/{id}", h.Get)
 	router.HandleFunc("POST /api/v1/products", h.Create)
 	router.HandleFunc("PUT /api/v1/products/{id}", h.Update)
+	router.HandleFunc("PATCH /api/v1/products/{id}", h.Patch)
 	router.HandleFunc("DELETE /api/v1/products/{id}", h.Delete)
 	router.HandleFunc("/api/v1/products", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Allow", "GET, POST, PUT, DELETE")
+		w.Header().Set("Allow", "GET, POST, PUT, PATCH, DELETE")
 		api.Write(w, 405, api.Failure("method_not_allowed", "method not allowed"))
 	})
 	router.HandleFunc("/api/v1/products/{id}", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Allow", "GET, PUT, DELETE")
+		w.Header().Set("Allow", "GET, PUT, PATCH, DELETE")
 		api.Write(w, 405, api.Failure("method_not_allowed", "method not allowed"))
 	})
 }
@@ -89,6 +93,32 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	record, err := h.service.Update(r.Context(), id, input)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	api.Write(w, 200, api.Success(record))
+}
+func (h *Handler) Patch(w http.ResponseWriter, r *http.Request) {
+	id, err := api.ID(r.PathValue("id"))
+	if err != nil {
+		bad(w, err)
+		return
+	}
+	var input Input
+	if err := api.Decode(r.Body, &input); err != nil {
+		bad(w, err)
+		return
+	}
+	if err := input.ValidatePartial(); err != nil {
+		bad(w, err)
+		return
+	}
+	if input.IsEmpty() {
+		bad(w, errEmptyPatch)
+		return
+	}
+	record, err := h.service.Patch(r.Context(), id, input)
 	if err != nil {
 		fail(w, err)
 		return

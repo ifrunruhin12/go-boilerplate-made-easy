@@ -6,5 +6,7 @@ func TestRepositoryIntegration(t *testing.T){url:=os.Getenv("TEST_DATABASE_URL")
  r:=NewRepository(db);v,err:=r.Create(ctx,sampleInput().Record());if err!=nil{t.Fatal(err)};got,err:=r.Get(ctx,v.ID);if err!=nil||got!=v{t.Fatalf("read: %v %v",got,err)}
  rows,err:=r.List(ctx,20,0);if err!=nil||len(rows)!=1{t.Fatalf("list: %v %v",rows,err)};rows,err=r.List(ctx,1,1);if err!=nil||len(rows)!=0{t.Fatalf("pagination: %v %v",rows,err)}
  got,err=r.Update(ctx,v.ID,zeroInput().Record());expected:=zeroInput().Record();expected.ID=v.ID;if err!=nil||got!=expected{t.Fatalf("update: %v %v",got,err)}
+ // Partial PATCH: only the first field is set; the rest keep their values.
+ { var partial Input;{{if index .Resource.Fields 0}}partial.{{(index .Resource.Fields 0).GoName}}=zeroInput().{{(index .Resource.Fields 0).GoName}};{{end}}patched,err:=r.Patch(ctx,v.ID,partial);if err!=nil{t.Fatalf("patch: %v",err)};{{if index .Resource.Fields 0}}if patched.{{(index .Resource.Fields 0).GoName}}!=*zeroInput().{{(index .Resource.Fields 0).GoName}}{t.Fatalf("patched field: %v",patched)}{{end}}}
  if err=r.Delete(ctx,v.ID);err!=nil{t.Fatal(err)};if err=r.Delete(ctx,v.ID);!errors.Is(err,api.ErrNotFound){t.Fatal(err)};if _,err=r.Update(ctx,v.ID,expected);!errors.Is(err,api.ErrNotFound){t.Fatal(err)}
 }

@@ -2,9 +2,12 @@ package products
 
 import (
 	"bytes"
+	"errors"
 	"github.com/gofiber/fiber/v2"
 	"toolbox/internal/api"
 )
+
+var errEmptyPatch = errors.New("at least one field is required")
 
 type Handler struct{ service *Service }
 
@@ -15,13 +18,14 @@ func (h *Handler) Register(router *fiber.App) {
 	group.Get("/:id", h.Get)
 	group.Post("", h.Create)
 	group.Put("/:id", h.Update)
+	group.Patch("/:id", h.Patch)
 	group.Delete("/:id", h.Delete)
 	group.All("", func(f *fiber.Ctx) error {
-		f.Set("Allow", "GET, POST, PUT, DELETE")
+		f.Set("Allow", "GET, POST, PUT, PATCH, DELETE")
 		return f.Status(405).JSON(api.Failure("method_not_allowed", "method not allowed"))
 	})
 	group.All("/:id", func(f *fiber.Ctx) error {
-		f.Set("Allow", "GET, PUT, DELETE")
+		f.Set("Allow", "GET, PUT, PATCH, DELETE")
 		return f.Status(405).JSON(api.Failure("method_not_allowed", "method not allowed"))
 	})
 }
@@ -81,6 +85,27 @@ func (h *Handler) Update(f *fiber.Ctx) error {
 		return bad(f, err)
 	}
 	record, err := h.service.Update(f.UserContext(), id, input)
+	if err != nil {
+		return fail(f, err)
+	}
+	return f.JSON(api.Success(record))
+}
+func (h *Handler) Patch(f *fiber.Ctx) error {
+	id, err := api.ID(f.Params("id"))
+	if err != nil {
+		return bad(f, err)
+	}
+	var input Input
+	if err := api.Decode(bytes.NewReader(f.Body()), &input); err != nil {
+		return bad(f, err)
+	}
+	if err := input.ValidatePartial(); err != nil {
+		return bad(f, err)
+	}
+	if input.IsEmpty() {
+		return bad(f, errEmptyPatch)
+	}
+	record, err := h.service.Patch(f.UserContext(), id, input)
 	if err != nil {
 		return fail(f, err)
 	}
